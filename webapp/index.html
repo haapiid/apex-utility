@@ -1,0 +1,69 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>ApeX Pro</title>
+<meta name="description" content="ApeX Pro: trade any token on Solana, Ethereum, BSC, Base, HyperEVM, MegaETH and Robinhood Chain from your browser, with the same wallets as the ApeX Telegram bot.">
+<meta name="theme-color" content="#0E0E0C">
+<link rel="icon" type="image/png" sizes="32x32" href="img/favicon-32.png">
+<link rel="apple-touch-icon" href="img/apple-touch-icon.png">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Archivo:wdth,wght@62..125,400..900&family=JetBrains+Mono:wght@500;700&display=swap">
+<link rel="stylesheet" href="css/app.css">
+<script src="https://cdn.jsdelivr.net/npm/lightweight-charts@5.2.1/dist/lightweight-charts.standalone.production.js" defer></script>
+<script type="module" src="js/main.js"></script>
+</head>
+<body>
+<header class="top">
+  <a class="brand" href="#/" aria-label="ApeX Pro home">
+    <img src="img/face-mark.png" alt="" width="131" height="112">
+    <span>ApeX <b>Pro</b></span>
+  </a>
+  <nav class="nav" aria-label="Main">
+    <a href="#/" data-nav="discover">Discover</a>
+    <a href="#/trending" data-nav="trending">Trending</a>
+    <a href="#/positions" data-nav="positions">Positions</a>
+    <a href="#/orders" data-nav="orders">Orders</a>
+    <a href="#/rewards" data-nav="rewards">Rewards</a>
+  </nav>
+  <div class="search">
+    <input id="search" type="search" placeholder="Search token or paste address" autocomplete="off" spellcheck="false" aria-label="Search tokens">
+    <div class="search-results" id="search-results" hidden></div>
+  </div>
+  <select id="chain" class="chain-select" aria-label="Chain"></select>
+  <div id="account" class="account"></div>
+</header>
+
+<main id="view" class="view" tabindex="-1"></main>
+
+<div id="toasts" class="toasts" aria-live="polite"></div>
+
+<dialog id="login" class="modal">
+  <form method="dialog" class="modal-close"><button aria-label="Close">✕</button></form>
+  <h2 id="login-title">Log in to ApeX Pro</h2>
+  <p id="login-lede">No Telegram needed. New here? Logging in creates your account and your ApeX trading wallets.</p>
+  <div class="login-options">
+    <button class="btn btn-block" type="button" data-login="sol">◎ Phantom or Solana wallet</button>
+    <button class="btn btn-block" type="button" data-login="evm">⟠ MetaMask or EVM wallet</button>
+    <a class="btn btn-block" id="login-google" href="/api/auth/google/start" hidden>G&nbsp; Continue with Google</a>
+  </div>
+  <details class="login-telegram">
+    <summary>Use the Telegram bot instead</summary>
+    <p>Same wallets, settings and rewards as in the bot.</p>
+    <ol class="login-steps">
+      <li><a id="login-bot" class="btn btn-yellow" href="#" target="_blank" rel="noopener">Get a code from the bot</a><span>or send <code>/web</code> to the bot</span></li>
+      <li>
+        <form id="login-form" class="login-form">
+          <input id="login-code" name="code" placeholder="XXXX-XXXX" maxlength="9" autocomplete="one-time-code" required aria-label="Login code">
+          <button class="btn btn-yellow" type="submit">Log in</button>
+        </form>
+      </li>
+    </ol>
+  </details>
+  <p class="fine">Signing with a wallet only proves it's yours: no transaction, no access to its funds. Never share a login code.</p>
+  <p class="form-error" id="login-error" hidden></p>
+</dialog>
+</body>
+</html>

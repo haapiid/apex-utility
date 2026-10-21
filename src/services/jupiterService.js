@@ -16,16 +16,12 @@ api.interceptors.response.use(null, async (err) => {
 
 class NoRouteError extends Error {}
 
-async function getQuote({ inputMint, outputMint, amount }) {
+// platformFeeBps > 0 makes Jupiter take our fee inside the swap (needs a feeAccount when building it)
+async function getQuote({ inputMint, outputMint, amount, slippageBps = config.jupiter.slippageBps, platformFeeBps = 0 }) {
   try {
-    const { data } = await api.get('/swap/v1/quote', {
-      params: {
-        inputMint,
-        outputMint,
-        amount: amount.toString(),
-        slippageBps: config.jupiter.slippageBps,
-      },
-    });
+    const params = { inputMint, outputMint, amount: amount.toString(), slippageBps };
+    if (platformFeeBps > 0) params.platformFeeBps = platformFeeBps;
+    const { data } = await api.get('/swap/v1/quote', { params });
     return data;
   } catch (err) {
     const status = err.response?.status;
@@ -34,19 +30,26 @@ async function getQuote({ inputMint, outputMint, amount }) {
   }
 }
 
-// Returns a base64 serialized VersionedTransaction, ready to sign
-async function buildSwapTransaction(quoteResponse, userPublicKey) {
+/**
+ * Returns a base64 serialized VersionedTransaction, ready to sign.
+ *   feeAccount       token account receiving the platform fee (input or output mint of the swap)
+ *   jitoTipLamports  adds a tip to a Jito tip account (for sending through Jito); otherwise a priority fee
+ */
+async function buildSwapTransaction(quoteResponse, userPublicKey, { feeAccount, jitoTipLamports, priorityMaxLamports } = {}) {
   const { data } = await api.post('/swap/v1/swap', {
     quoteResponse,
     userPublicKey,
+    ...(feeAccount && { feeAccount }),
     wrapAndUnwrapSol: true,
     dynamicComputeUnitLimit: true,
-    prioritizationFeeLamports: {
-      priorityLevelWithMaxLamports: {
-        maxLamports: config.jupiter.priorityFeeMaxLamports,
-        priorityLevel: 'veryHigh',
-      },
-    },
+    prioritizationFeeLamports: jitoTipLamports
+      ? { jitoTipLamports }
+      : {
+          priorityLevelWithMaxLamports: {
+            maxLamports: priorityMaxLamports ?? config.jupiter.priorityFeeMaxLamports,
+            priorityLevel: 'veryHigh',
+          },
+        },
   });
   return data;
 }

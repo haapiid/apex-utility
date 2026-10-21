@@ -1,49 +1,138 @@
 const { InlineKeyboard } = require('grammy');
 const { SCENARIOS } = require('../../services/revenueService');
 
-const BUY_PRESETS = ['0.1', '0.25', '0.5', '1', '2'];
-const SELL_PRESETS = [25, 50, 100];
-
 const backButton = (target = 'menu:main', label = '⬅️ Back') => InlineKeyboard.text(label, target);
+const KIND_ICON = { sol: '◎', evm: '⟠' };
 
 function mainMenu() {
   return new InlineKeyboard()
-    .text('🐒 Wallet', 'menu:wallet')
-    .text('⚡ Trade', 'menu:trade')
+    .text('🐒 Wallets', 'menu:wallet')
+    .text('📊 Positions', 'menu:positions')
     .row()
+    .text('⚡ Trade', 'menu:trade')
+    .text('🤖 Orders', 'menu:orders')
+    .row()
+    .text('🎯 Sniper', 'menu:snipe')
+    .text('👥 Copy Trade', 'menu:copy')
+    .row()
+    .text('💰 Rewards', 'menu:rewards')
+    .text('🎁 Referral', 'menu:referral')
+    .row()
+    .text('⚙️ Settings', 'menu:settings')
     .text('🍌 Revenue Share', 'menu:revenue')
+    .row()
+    .text('🌐 ApeX Pro (web)', 'menu:web')
     .text('⛽ Fees', 'menu:gas')
     .row()
     .text('🛡️ Security', 'menu:security')
     .text('❓ Help', 'menu:help');
 }
 
-function walletMenu(hasWallet) {
+/**
+ * wallets: walletService.listWallets(userId); canCreate: { sol, evm } (under the per-kind limit)
+ * Each wallet opens its detail screen; ✅ marks the active (trading) one.
+ */
+function walletMenu(wallets, canCreate) {
   const kb = new InlineKeyboard();
-  if (hasWallet) {
-    kb.text('🔄 Refresh', 'wallet:refresh')
-      .text('📤 Withdraw', 'wallet:withdraw')
-      .row()
-      .text('🔑 Export Key', 'wallet:export')
-      .text('🗑️ Remove', 'wallet:remove');
-  } else {
-    kb.text('🍌 Create Wallet', 'wallet:create').text('📥 Import Wallet', 'wallet:import');
+  if (!wallets.length) {
+    return kb.text('🍌 Create Wallet', 'wallet:create').text('📥 Import Wallet', 'wallet:import').row().add(backButton());
   }
-  return kb.row().add(backButton());
+  wallets.forEach((w, i) => {
+    kb.text(`${w.active ? '✅' : '▫️'} ${KIND_ICON[w.kind]} ${w.label}`, `wallet:open:${w.id}`);
+    if (i % 3 === 2) kb.row();
+  });
+  kb.row();
+  if (canCreate.sol) kb.text('➕ Solana', 'wallet:new:sol');
+  if (canCreate.evm) kb.text('➕ EVM', 'wallet:new:evm');
+  kb.text('📥 Import', 'wallet:import').row();
+  return kb.text('📤 Withdraw', 'wallet:withdraw').text('🔄 Refresh', 'wallet:refresh').row().add(backButton());
+}
+
+function walletDetailMenu(wallet) {
+  const kb = new InlineKeyboard();
+  if (!wallet.active) kb.text('✅ Use for trading', `wallet:use:${wallet.id}`).row();
+  return kb
+    .text('🔑 Export Key', `wallet:export:${wallet.id}`)
+    .text('🗑️ Remove', `wallet:remove:${wallet.id}`)
+    .row()
+    .add(backButton('menu:wallet'));
 }
 
 function confirmMenu(action, label, cancelTarget = 'menu:wallet') {
   return new InlineKeyboard().text(`✅ ${label}`, `${action}:confirm`).text('❌ Cancel', cancelTarget);
 }
 
-function tokenMenu(mint) {
+// Callback data: <action>:<chain key>:<token address>[:<amount>] (stays under Telegram's 64 bytes)
+function tokenMenu(chain, address, { buyPresets, sellPresets }) {
   const kb = new InlineKeyboard();
-  BUY_PRESETS.slice(0, 3).forEach((a) => kb.text(`🟢 Buy ${a} SOL`, `buy:${mint}:${a}`));
+  const at = `${chain.key}:${address}`;
+  buyPresets.slice(0, 3).forEach((a) => kb.text(`🟢 Buy ${a} ${chain.native}`, `buy:${at}:${a}`));
   kb.row();
-  BUY_PRESETS.slice(3).forEach((a) => kb.text(`🟢 Buy ${a} SOL`, `buy:${mint}:${a}`));
-  kb.text('🟢 Buy X SOL', `buyx:${mint}`).row();
-  SELL_PRESETS.forEach((p) => kb.text(`🔴 Sell ${p}%`, `sell:${mint}:${p}`));
-  return kb.row().text('🔄 Refresh', `tok:${mint}`).add(backButton('menu:main', '🏠 Menu'));
+  buyPresets.slice(3).forEach((a) => kb.text(`🟢 Buy ${a} ${chain.native}`, `buy:${at}:${a}`));
+  kb.text(`🟢 Buy X ${chain.native}`, `buyx:${at}`).row();
+  sellPresets.forEach((p) => kb.text(`🔴 Sell ${p}%`, `sell:${at}:${p}`));
+  kb.row().text('🎯 Limit / TP / SL', `ao:menu:${at}`).text('🔁 DCA', `ao:dca:${at}`);
+  return kb.row().text('🔄 Refresh', `tok:${at}`).text('📊 Positions', 'menu:positions').add(backButton('menu:main', '🏠 Menu'));
+}
+
+// Automation for one token: ao:<code>:<chain>:<address>
+function orderTypeMenu(chain, address) {
+  const at = `${chain.key}:${address}`;
+  return new InlineKeyboard()
+    .text('🟢 Limit buy (price drops)', `ao:lb:${at}`)
+    .row()
+    .text('📈 Take profit', `ao:tp:${at}`)
+    .text('📉 Stop loss', `ao:sl:${at}`)
+    .row()
+    .add(backButton(`tok:${at}`));
+}
+
+function dcaTypeMenu(chain, address) {
+  const at = `${chain.key}:${address}`;
+  return new InlineKeyboard()
+    .text('🟢 DCA buy', `ao:db:${at}`)
+    .text('🔴 DCA sell', `ao:ds:${at}`)
+    .row()
+    .add(backButton(`tok:${at}`));
+}
+
+// items: [{ label, cancel }] for every open order / DCA plan / snipe
+function ordersMenu(items) {
+  const kb = new InlineKeyboard();
+  items.forEach((item, i) => {
+    kb.text(`❌ ${item.label}`, item.cancel);
+    if (i % 2 === 1) kb.row();
+  });
+  return kb.row().text('🔄 Refresh', 'menu:orders').add(backButton());
+}
+
+function copyMenu(targets) {
+  const kb = new InlineKeyboard();
+  targets.forEach((t, i) => {
+    kb.text(`${t.active ? '🟢' : '⏸️'} ${t.label}`, `cp:o:${t.id}`);
+    if (i % 2 === 1) kb.row();
+  });
+  return kb.row().text('➕ Follow a wallet', 'cp:add').row().add(backButton());
+}
+
+function copyDetailMenu(t) {
+  return new InlineKeyboard()
+    .text(t.active ? '⏸️ Pause' : '▶️ Resume', `cp:p:${t.id}`)
+    .text(t.copy_sells ? '🔴 Copy sells: ON' : '🔴 Copy sells: OFF', `cp:s:${t.id}`)
+    .row()
+    .text('🗑️ Unfollow', `cp:r:${t.id}`)
+    .row()
+    .add(backButton('menu:copy'));
+}
+
+// The same 0x address exists on several chains: let the user pick
+function chainPickMenu(chains, address) {
+  const kb = new InlineKeyboard();
+  chains.forEach((c, i) => {
+    kb.text(`⛓ ${c.name}`, `tok:${c.key}:${address}`);
+    if (i % 2 === 1) kb.row();
+  });
+  return kb.row().add(backButton('menu:main', '🏠 Menu'));
 }
 
 function tradeConfirmMenu(id) {
@@ -54,10 +143,72 @@ function withdrawConfirmMenu(id) {
   return new InlineKeyboard().text('📤 Confirm Withdraw', `wd:ok:${id}`).text('❌ Cancel', `wd:no:${id}`);
 }
 
-function afterTradeMenu(mint) {
+function afterTradeMenu(chain, address) {
   const kb = new InlineKeyboard();
-  if (mint) kb.text('🍌 Open Token', `tok:${mint}`);
-  return kb.add(backButton('menu:main', '🏠 Menu'));
+  if (address) kb.text('🍌 Open Token', `tok:${chain.key}:${address}`);
+  return kb.text('📊 Positions', 'menu:positions').add(backButton('menu:main', '🏠 Menu'));
+}
+
+// rows: portfolio rows; each opens its token card
+function positionsMenu(rows) {
+  const kb = new InlineKeyboard();
+  rows.forEach((r, i) => {
+    kb.text(`${i + 1}. ${r.symbol}`, `tok:${r.chain.key}:${r.token}`);
+    if (i % 3 === 2) kb.row();
+  });
+  return kb.row().text('🔄 Refresh', 'menu:positions').add(backButton('menu:main', '🏠 Menu'));
+}
+
+// labels: preformatted current values from the settings screen
+function settingsMenu(labels) {
+  return new InlineKeyboard()
+    .text(`🛡️ MEV protection: ${labels.mev}`, 'set:mev')
+    .row()
+    .text(`✅ Confirm trades: ${labels.confirm}`, 'set:confirm')
+    .row()
+    .text(`🎯 Slippage SOL ${labels.slipSol}`, 'set:slip:sol')
+    .text(`🎯 Slippage EVM ${labels.slipEvm}`, 'set:slip:evm')
+    .row()
+    .text(`💸 Jito tip ${labels.tip}`, 'set:tip')
+    .text(`⚡ Priority ${labels.priority}`, 'set:prio')
+    .row()
+    .text(`⛽ EVM gas boost ${labels.gas}`, 'set:gas')
+    .row()
+    .text(`🛡️ Anti-rug: ${labels.rug}`, 'set:rug')
+    .text(`📉 Trigger ${labels.rugPct}`, 'set:rugpct')
+    .row()
+    .text('🟢 Buy buttons', 'set:buy')
+    .text('🔴 Sell buttons', 'set:sell')
+    .row()
+    .text('♻️ Reset to defaults', 'set:reset')
+    .row()
+    .add(backButton());
+}
+
+function settingsChainMenu(chains) {
+  const kb = new InlineKeyboard();
+  chains.forEach((c, i) => {
+    kb.text(`⛓ ${c.name}`, `set:buy:${c.key}`);
+    if (i % 2 === 1) kb.row();
+  });
+  return kb.row().add(backButton('menu:settings'));
+}
+
+// claimable: chains (objects) with a native balance; cashback/burn only once $APEX is live
+function rewardsMenu({ claimable, cashback, apexLive, slotCost }) {
+  const kb = new InlineKeyboard();
+  claimable.forEach((c, i) => {
+    kb.text(`💸 Claim ${c.native} (${c.name})`, `rw:c:${c.key}`);
+    if (i % 2 === 1) kb.row();
+  });
+  kb.row();
+  if (cashback) kb.text('🎁 Claim cashback', 'rw:cb').row();
+  if (apexLive) kb.text('🔥 Burn $APEX', 'rw:burn').text(`➕ Wallet slot (${slotCost} cr)`, 'rw:slot').row();
+  return kb.text('🔄 Refresh', 'menu:rewards').text('🎁 Referral', 'menu:referral').row().add(backButton());
+}
+
+function adminMenu() {
+  return new InlineKeyboard().text('💰 Distribute now', 'adm:dist').text('🔄 Refresh', 'adm:home').row().add(backButton());
 }
 
 function revenueMenu() {
@@ -75,13 +226,26 @@ function gasMenu() {
 }
 
 module.exports = {
+  KIND_ICON,
   mainMenu,
   walletMenu,
+  walletDetailMenu,
   confirmMenu,
   tokenMenu,
+  chainPickMenu,
   tradeConfirmMenu,
   withdrawConfirmMenu,
   afterTradeMenu,
+  positionsMenu,
+  orderTypeMenu,
+  dcaTypeMenu,
+  ordersMenu,
+  copyMenu,
+  copyDetailMenu,
+  settingsMenu,
+  settingsChainMenu,
+  rewardsMenu,
+  adminMenu,
   revenueMenu,
   backOnly,
   gasMenu,

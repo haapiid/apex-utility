@@ -6,19 +6,19 @@
 // Every hidden state is created by script under prefers-reduced-motion: no-preference,
 // so without JS or with reduced motion the page is simply the finished page.
 
-// Same model as the bot (.env): BOT_FEE_BPS=100, REVENUE_SHARE_BPS=4000, HOLDER_SPLIT_BPS=7000
-const MODEL = { fee: 0.01, share: 0.4, holderSplit: 0.7, totalSupply: 1_000_000 };
+// Same model as the bot's /revenue calculator (.env): FEE_MANUAL_BPS=50, REVENUE_SHARE_BPS=4000,
+// holders split by holdings, assuming no referred volume
+const MODEL = { fee: 0.005, share: 0.4, totalSupply: 1_000_000 };
 const REDUCED = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
 
 const fmt = (n, max = 4) => new Intl.NumberFormat('en-US', { maximumFractionDigits: max }).format(n);
-const fmtSol = (n) => `${fmt(n, n < 1 ? 4 : 2)} SOL`;
+const fmtUsd = (n) => new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', maximumFractionDigits: n < 10 ? 2 : 0 }).format(n);
 const $ = (sel, root = document) => root.querySelector(sel);
 const $$ = (sel, root = document) => [...root.querySelectorAll(sel)];
 
 // ---------------------------------------------------------------- calculator
 function setupCalculator(gsap) {
   const platform = $('#c-platform');
-  const volume = $('#c-volume');
   const hold = $('#c-hold');
   if (!platform) return;
 
@@ -34,23 +34,20 @@ function setupCalculator(gsap) {
 
   function update() {
     const p = Number(platform.value);
-    const v = Math.min(Number(volume.value), p);
     const h = Number(hold.value);
 
-    const pool = p * MODEL.fee * MODEL.share;
-    const holderPool = pool * MODEL.holderSplit;
-    const traderPool = pool - holderPool;
-    const daily = holderPool * (h / MODEL.totalSupply) + traderPool * (p > 0 ? v / p : 0);
+    const fees = p * MODEL.fee;
+    const holderPool = fees * MODEL.share;
+    const daily = holderPool * (h / MODEL.totalSupply);
 
-    $('#o-platform').textContent = `${fmt(p)} SOL`;
-    $('#o-volume').textContent = `${fmt(v)} SOL`;
+    $('#o-platform').textContent = fmtUsd(p);
     $('#o-hold').textContent = `${fmt(h)} of ${fmt(MODEL.totalSupply)}`;
-    setValue($('#r-daily'), daily, fmtSol);
-    setValue($('#r-month'), daily * 30, fmtSol);
-    $('#r-detail').textContent = `Holder pool ${fmtSol(holderPool)} a day, trader pool ${fmtSol(traderPool)} a day.`;
+    setValue($('#r-daily'), daily, fmtUsd);
+    setValue($('#r-month'), daily * 30, fmtUsd);
+    $('#r-detail').textContent = `Holder pool ${fmtUsd(holderPool)} a day (40% of ${fmtUsd(fees)} in fees).`;
   }
 
-  [platform, volume, hold].forEach((el) => el.addEventListener('input', update));
+  [platform, hold].forEach((el) => el.addEventListener('input', update));
   $('#calc').addEventListener('submit', (e) => e.preventDefault());
   update();
 }
@@ -58,24 +55,26 @@ function setupCalculator(gsap) {
 // ---------------------------------------------------------------- hero replay
 const SCREENS = {
   card: $('#demo-text')?.innerHTML,
-  confirm: `🟢 <b>Confirm Buy — $Bonk</b>
+  confirm: `🟢 <b>Confirm Buy — $Bonk</b> • ⛓ Solana
+👛 Wallet W1
 
 💸 You pay: <b>0.5 SOL</b>
-🍌 Bot fee (1%): 0.005 SOL
-🎯 Est. received: <b>16,891,371.2385 Bonk</b>
-🛡️ Min. received (5% slippage): 16,046,802.67657 Bonk
+🍌 Bot fee (0.5%): 0.0025 SOL
+🎯 Est. received: <b>16,976,243.54 Bonk</b>
+🛡️ Min. received (5% slippage): 16,127,431.36 Bonk
 📉 Price impact: 0.03%
+🥷 MEV protection: Jito
 
-⏳ Quote valid for 2 minutes. Network fee is paid separately.`,
+⏳ Quote valid for 2 minutes. Network fee / Jito tip is paid separately.`,
   sending: '⚡ Sending buy…',
   submitted: '🚀 <b>Submitted</b> — <u>5VfY…xB1cD</u>\n⏳ Confirming…',
-  done: '✅ <b>Bought $Bonk!</b>\n\nSpent 0.5 SOL\n🔗 <u>View on Solscan</u>',
+  done: '✅ <b>Bought $Bonk!</b> • ⛓ Solana\n\nSpent 0.5 SOL\n🔗 <u>View transaction</u>',
 };
 const KEYBOARDS = {
   card: $('#demo-kb')?.innerHTML,
   confirm: '<div><span id="demo-confirm">⚡ Confirm</span><span>❌ Cancel</span></div>',
   none: '',
-  done: '<div><span>🍌 Open Token</span><span>🏠 Menu</span></div>',
+  done: '<div><span>🍌 Open Token</span><span>📊 Positions</span><span>🏠 Menu</span></div>',
 };
 
 function heroReplay(gsap) {
@@ -192,9 +191,9 @@ function boot() {
     heroReplay(gsap);
 
     // Created top to bottom so pin spacing is measured in page order
-    // Hero recedes as you leave it (linear, small travel)
+    // Hero recedes as you leave it (linear, small travel). The mascot stays planted on the hero's edge.
     gsap.timeline({ scrollTrigger: { trigger: '.hero', start: 'top top', end: 'bottom top', scrub: true } })
-      .to('.phone-wrap', { yPercent: -6, scale: 0.96, ease: 'none' }, 0)
+      .to('.phone', { yPercent: -4, scale: 0.97, ease: 'none' }, 0)
       .to('.hero-copy', { yPercent: 8, ease: 'none' }, 0);
 
     // Lines are measured after the web font has loaded, or the breaks would be wrong
@@ -207,7 +206,7 @@ function boot() {
     rows(gsap, ScrollTrigger, '.steps li', { y: 24 });
     rows(gsap, ScrollTrigger, '.commands-intro p', { y: 20 });
     rows(gsap, ScrollTrigger, '.cmd-list > div', { x: -24 });
-    $$('.share-head p').forEach((p) => gsap.from(p, { autoAlpha: 0, y: 20, duration: 0.8, ease: 'power3.out', scrollTrigger: { trigger: p, start: 'top 90%', once: true } }));
+    $$('.share-head p, .split-note').forEach((p) => gsap.from(p, { autoAlpha: 0, y: 20, duration: 0.8, ease: 'power3.out', scrollTrigger: { trigger: p, start: 'top 90%', once: true } }));
     // The banana stays still; only its legend text arrives
     rows(gsap, ScrollTrigger, '.legend p', { y: 20 });
     rows(gsap, ScrollTrigger, '.calc', { y: 32 });

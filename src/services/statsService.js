@@ -1,48 +1,65 @@
-const { config } = require('../config');
-const { createJsonStore } = require('../utils/jsonStore');
+const { db, getMeta } = require('../db');
 
 const DAY_MS = 24 * 60 * 60 * 1000;
-const KEEP_MS = 30 * DAY_MS;
+const MONTH_MS = 30 * DAY_MS;
 
-// trades: [{ userId, side, token, solVolume, feeSol, signature, at }]
-const store = createJsonStore(config.stats.storePath, { trades: [], totals: { volumeSol: 0, feesSol: 0, trades: 0 } });
-
-function recordTrade({ userId, side, token, solVolume, feeSol, signature }) {
-  const data = store.load();
-  const now = Date.now();
-  data.trades.push({ userId, side, token, solVolume, feeSol, signature, at: now });
-  data.trades = data.trades.filter((t) => now - t.at < KEEP_MS);
-  data.totals.volumeSol += solVolume;
-  data.totals.feesSol += feeSol;
-  data.totals.trades += 1;
-  store.save();
+// Solana trades carry sol_volume/fee_sol; EVM trades carry native_volume/volume_usd/fee_usd
+function recordTrade({
+  userId,
+  walletId = null,
+  chain = 'sol',
+  side,
+  source = 'manual',
+  token,
+  solVolume = 0,
+  feeSol = 0,
+  nativeVolume = 0,
+  volumeUsd = 0,
+  feeUsd = 0,
+  signature = null,
+}) {
+  db.prepare(
+    `INSERT INTO trades (user_id, wallet_id, chain, side, source, token, sol_volume, fee_sol, native_volume, volume_usd, fee_usd, signature, at)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+  ).run(userId, walletId, chain, side, source, token, solVolume, feeSol, nativeVolume, volumeUsd, feeUsd, signature, Date.now());
 }
 
-function sum(trades, key) {
-  return trades.reduce((acc, t) => acc + t[key], 0);
-}
+const one = (sql, ...params) => db.prepare(sql).get(...params);
 
 function getStats(userId) {
-  const data = store.load();
   const since = Date.now() - DAY_MS;
-  const last24h = data.trades.filter((t) => t.at >= since);
-  const mine24h = last24h.filter((t) => t.userId === userId);
-  const mineAll = data.trades.filter((t) => t.userId === userId);
+  const sol24h = one(
+    `SELECT COALESCE(SUM(sol_volume), 0) AS volume, COALESCE(SUM(fee_sol), 0) AS fees, COUNT(*) AS trades, COUNT(DISTINCT user_id) AS traders
+     FROM trades WHERE chain = 'sol' AND at >= ?`,
+    since,
+  );
+  const evm24h = one(
+    `SELECT COALESCE(SUM(volume_usd), 0) AS volume, COALESCE(SUM(fee_usd), 0) AS fees, COUNT(*) AS trades
+     FROM trades WHERE chain != 'sol' AND at >= ?`,
+    since,
+  );
+  const allTime = one("SELECT COALESCE(SUM(sol_volume), 0) AS volume, COALESCE(SUM(fee_sol), 0) AS fees, COUNT(*) AS trades FROM trades WHERE chain = 'sol'");
+  const allTimeEvm = one("SELECT COUNT(*) AS trades FROM trades WHERE chain != 'sol'");
+  const mine24h = one("SELECT COALESCE(SUM(sol_volume), 0) AS volume, COUNT(*) AS trades FROM trades WHERE chain = 'sol' AND user_id = ? AND at >= ?", userId, since);
+  const mine30d = one(
+    "SELECT COALESCE(SUM(sol_volume), 0) AS volume, COALESCE(SUM(fee_sol), 0) AS fees FROM trades WHERE chain = 'sol' AND user_id = ? AND at >= ?",
+    userId,
+    Date.now() - MONTH_MS,
+  );
 
   return {
     platform: {
-      volume24h: sum(last24h, 'solVolume'),
-      fees24h: sum(last24h, 'feeSol'),
-      trades24h: last24h.length,
-      traders24h: new Set(last24h.map((t) => t.userId)).size,
-      ...data.totals,
+      volume24h: sol24h.volume,
+      fees24h: sol24h.fees,
+      trades24h: sol24h.trades,
+      traders24h: sol24h.traders,
+      // All-time includes totals carried over from the old JSON log
+      volumeSol: allTime.volume + Number(getMeta('legacy_volume_sol') || 0),
+      feesSol: allTime.fees + Number(getMeta('legacy_fees_sol') || 0),
+      trades: allTime.trades + allTimeEvm.trades + Number(getMeta('legacy_trades') || 0),
     },
-    user: {
-      volume24h: sum(mine24h, 'solVolume'),
-      trades24h: mine24h.length,
-      volume30d: sum(mineAll, 'solVolume'),
-      feesPaid30d: sum(mineAll, 'feeSol'),
-    },
+    evm: { volumeUsd24h: evm24h.volume, feesUsd24h: evm24h.fees, trades24h: evm24h.trades },
+    user: { volume24h: mine24h.volume, trades24h: mine24h.trades, volume30d: mine30d.volume, feesPaid30d: mine30d.fees },
   };
 }
 

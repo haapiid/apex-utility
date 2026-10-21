@@ -1,5 +1,9 @@
 const { PublicKey } = require('@solana/web3.js');
+const { formatUnits } = require('ethers');
 const connection = require('./connection');
+const { getProvider } = require('./evm/provider');
+const { withTimeout } = require('./tradeCommon');
+const { evmChains } = require('../config/chains');
 const { BASE_TX_FEE_LAMPORTS, ESTIMATED_SWAP_COMPUTE_UNITS } = require('../config/solana');
 const { lamportsToSol } = require('../utils/format');
 const { getSolPriceUsd } = require('./priceService');
@@ -39,4 +43,18 @@ async function getGasInfo() {
   };
 }
 
-module.exports = { getGasInfo };
+// Current gas price per EVM chain in gwei (null when the RPC doesn't answer)
+async function getEvmGasPrices() {
+  return Promise.all(
+    evmChains().map(async (chain) => {
+      try {
+        const fee = await withTimeout(getProvider(chain).getFeeData(), 5_000);
+        return { chain, gwei: Number(formatUnits(fee.gasPrice ?? 0n, 'gwei')) };
+      } catch {
+        return { chain, gwei: null };
+      }
+    }),
+  );
+}
+
+module.exports = { getGasInfo, getEvmGasPrices };

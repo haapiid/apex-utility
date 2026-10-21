@@ -6,7 +6,8 @@
   "scripts": {
     "start": "node index.js",
     "dev": "node --watch index.js",
-    "site": "node scripts/serve-site.js"
+    "site": "node scripts/serve-site.js",
+    "setup:fee-account": "node scripts/create-fee-account.js"
   },
   "keywords": [
     "telegram",
@@ -18,13 +19,14 @@
   ],
   "license": "MIT",
   "engines": {
-    "node": ">=18"
+    "node": ">=22.13"
   },
   "dependencies": {
     "@solana/web3.js": "^1.98.0",
     "axios": "^1.7.9",
     "bs58": "^6.0.0",
     "dotenv": "^16.4.7",
+    "ethers": "^6.17.0",
     "grammy": "^1.33.0",
     "pino": "^9.6.0"
   }

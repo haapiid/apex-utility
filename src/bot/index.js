@@ -1,5 +1,6 @@
 const { Bot, GrammyError, HttpError } = require('grammy');
 const { config } = require('../config');
+const { evmChains } = require('../config/chains');
 const { registerCommands, COMMAND_LIST } = require('./commands');
 const logger = require('../utils/logger');
 
@@ -58,12 +59,13 @@ function createBot() {
 // Commands menu + profile texts shown in Telegram
 async function setupProfile(bot) {
   await bot.api.setMyCommands(COMMAND_LIST);
-  await bot.api.setMyShortDescription('🐒 Trade Solana tokens faster on Telegram. Day-1 utility & revenue sharing 🍌');
+  await bot.api.setMyShortDescription('🐒 Trade tokens on Solana, Ethereum, BSC, Base & more on Telegram. Day-1 utility & revenue sharing 🍌');
   await bot.api.setMyDescription(
     '🐒🍌 ApeX Utility\n\n' +
-      '⚡ Buy & sell any Solana token by pasting its address\n' +
-      '🪐 Best price via Jupiter\n' +
-      '🐒 Built-in encrypted wallet\n' +
+      `⛓ ${['Solana', ...evmChains().map((c) => c.name)].join(' • ')}\n\n` +
+      '⚡ Buy & sell any token by pasting its address\n' +
+      '🪐 Best price via Jupiter & KyberSwap\n' +
+      '🐒 Built-in encrypted Solana & EVM wallets\n' +
       '🍌 Revenue sharing for holders & active traders\n' +
       '⛽ Live priority fees\n\n' +
       'Tap Start to begin.',

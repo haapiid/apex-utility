@@ -59,6 +59,9 @@ function toUnits(amount, decimals) {
 const lamportsToSol = (lamports) => fromUnits(lamports, 9);
 const solToLamports = (sol) => toUnits(sol, 9);
 const formatSol = (lamports, maxDecimals = 6) => `${formatNumber(lamportsToSol(lamports), maxDecimals)} SOL`;
+// Native coin of any chain (SOL, ETH, BNB, HYPE, ...) from its raw amount
+const formatNative = (raw, chain, maxDecimals = 6) =>
+  `${formatNumber(fromUnits(raw, chain.decimals), maxDecimals)} ${chain.native}`;
 
 function shortAddress(address, chars = 4) {
   if (!address) return '-';
@@ -87,6 +90,7 @@ module.exports = {
   lamportsToSol,
   solToLamports,
   formatSol,
+  formatNative,
   LAMPORTS_PER_SOL,
   shortAddress,
   escapeHtml,
