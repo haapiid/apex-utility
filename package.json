@@ -1,0 +1,31 @@
+{
+  "name": "apex-utility",
+  "version": "0.1.0",
+  "description": "ApeX Utility 🐒🍌 — Solana Telegram Trading & Utility Bot (Day-1 Utility & Revenue Sharing)",
+  "main": "index.js",
+  "scripts": {
+    "start": "node index.js",
+    "dev": "node --watch index.js",
+    "site": "node scripts/serve-site.js"
+  },
+  "keywords": [
+    "telegram",
+    "bot",
+    "grammy",
+    "solana",
+    "jupiter",
+    "trading"
+  ],
+  "license": "MIT",
+  "engines": {
+    "node": ">=18"
+  },
+  "dependencies": {
+    "@solana/web3.js": "^1.98.0",
+    "axios": "^1.7.9",
+    "bs58": "^6.0.0",
+    "dotenv": "^16.4.7",
+    "grammy": "^1.33.0",
+    "pino": "^9.6.0"
+  }
+}
