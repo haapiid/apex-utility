@@ -1,0 +1,16 @@
+{
+  "name": "apex-konten-x",
+  "private": true,
+  "description": "ApeX Utility marketing content for X (banner, GIF, demo video), rendered with Remotion",
+  "scripts": {
+    "studio": "remotion studio src/index.jsx",
+    "render": "node render.mjs"
+  },
+  "dependencies": {
+    "@remotion/cli": "4.0.532",
+    "@remotion/google-fonts": "4.0.532",
+    "react": "18.3.1",
+    "react-dom": "18.3.1",
+    "remotion": "4.0.532"
+  }
+}
