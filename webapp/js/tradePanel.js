@@ -45,6 +45,72 @@ export function tradePanel({ chainKey, address, getInfo, onTraded }) {
       h('a', { class: 'chip', href: '#/settings' }, '⚙ Settings'),
     );
 
+  // ---------- wallets to trade from ----------
+  // Market trades can run from several of the user's wallets of this chain's kind at once. The pick is
+  // remembered per kind; the active wallet alone is the default (and the only one with a live quote).
+  const kindWallets = () => (state.me.wallets || []).filter((w) => w.kind === chain.kind);
+  const pickKey = `apex.wallets.${chain.kind}`;
+  let picked = loadPicked();
+
+  function loadPicked() {
+    const ws = kindWallets();
+    let ids = [];
+    try {
+      ids = JSON.parse(localStorage.getItem(pickKey) || '[]');
+    } catch {}
+    ids = Array.isArray(ids) ? ids.filter((id) => ws.some((w) => w.id === id)) : [];
+    if (!ids.length) {
+      const active = ws.find((w) => w.active) || ws[0];
+      if (active) ids = [active.id];
+    }
+    return new Set(ids);
+  }
+  function savePicked() {
+    try {
+      localStorage.setItem(pickKey, JSON.stringify([...picked]));
+    } catch {}
+  }
+  const pickedWallets = () => kindWallets().filter((w) => picked.has(w.id));
+  // Only the active wallet on its own goes through the quoted single-trade flow
+  const singleActive = () => picked.size === 1 && Boolean(pickedWallets()[0]?.active);
+
+  function walletPicker(onChange) {
+    const ws = kindWallets();
+    if (ws.length < 2) return '';
+    const row = h('div', { class: 'wallet-pick', role: 'group', 'aria-label': 'Trade from these wallets' });
+    const toggle = (w) => {
+      if (picked.has(w.id)) {
+        if (picked.size > 1) picked.delete(w.id);
+      } else picked.add(w.id);
+      changed();
+    };
+    const all = () => {
+      const active = ws.find((w) => w.active) || ws[0];
+      picked = new Set(picked.size === ws.length ? [active.id] : ws.map((w) => w.id));
+      changed();
+    };
+    function changed() {
+      savePicked();
+      draw();
+      onChange();
+    }
+    function draw() {
+      row.replaceChildren(
+        ...ws.map((w) =>
+          h(
+            'button',
+            { type: 'button', class: `wpick${picked.has(w.id) ? ' on' : ''}`, 'aria-pressed': String(picked.has(w.id)), title: w.address, onclick: () => toggle(w) },
+            w.label,
+            w.active ? h('small', {}, 'active') : '',
+          ),
+        ),
+        h('button', { type: 'button', class: 'wpick all', onclick: all }, picked.size === ws.length ? 'Active only' : 'All'),
+      );
+    }
+    draw();
+    return h('div', { class: 'field' }, h('span', { class: 'field-label' }, 'Trade from'), row);
+  }
+
   // ---------- market ----------
   function marketView() {
     const presets = side === 'buy' ? settings.buyPresetsResolved[chain.key] : settings.sellPresets.map(String);
@@ -59,11 +125,25 @@ export function tradePanel({ chainKey, address, getInfo, onTraded }) {
     );
     const info = getInfo();
     const holding = info ? `${fmtNum(fromUnits(info.balance, info.decimals), 4)} ${info.symbol}` : '–';
-    const reviewBtn = h('button', { class: `btn btn-block ${side === 'buy' ? 'btn-up' : 'btn-down'}`, type: 'button', onclick: () => review() }, settings.confirmTrades ? `Review ${side}` : `${side === 'buy' ? 'Buy' : 'Sell'} now`);
+    const reviewBtn = h('button', { class: `btn btn-block ${side === 'buy' ? 'btn-up' : 'btn-down'}`, type: 'button', onclick: () => review() });
+    const reviewLabel = () => {
+      const verb = side === 'buy' ? 'Buy' : 'Sell';
+      const n = picked.size > 1 ? ` from ${picked.size} wallets` : '';
+      reviewBtn.textContent = settings.confirmTrades ? `Review ${side}${n}` : `${verb} now${n}`;
+    };
+    reviewLabel();
+    const picker = walletPicker(() => {
+      quoteBox.replaceChildren();
+      reviewLabel();
+    });
 
     async function review() {
       const amount = input.value.trim().replace('%', '');
       if (!amount) return input.focus();
+      if (!singleActive()) {
+        if (!settings.confirmTrades) return executeMulti(amount);
+        return quoteBox.replaceChildren(multiView(amount));
+      }
       if (!settings.confirmTrades) return execute(amount);
       reviewBtn.disabled = true;
       try {
@@ -112,8 +192,67 @@ export function tradePanel({ chainKey, address, getInfo, onTraded }) {
       }
     }
 
+    // Several wallets (or one that isn't active): no single quote fits them all, so confirm the plan instead
+    function multiView(amount) {
+      const ws = pickedWallets();
+      const each = side === 'buy' ? `${amount} ${chain.native}` : `${amount}% of its bag`;
+      const rows = [
+        ['Wallets', ws.map((w) => w.label).join(', ')],
+        [side === 'buy' ? 'Each wallet pays' : 'Each wallet sells', each],
+      ];
+      if (side === 'buy') rows.push(['Total', `${fmtNum(Number(amount) * ws.length, 6)} ${chain.native}`]);
+      rows.push(['Fee', `${fmtNum(state.config.fees.manualBps / 100, 2)}% of each trade`], ['MEV protection', settings.mevProtect ? 'on' : 'off']);
+      const confirm = h('button', { class: `btn btn-block ${side === 'buy' ? 'btn-up' : 'btn-down'}`, type: 'button', onclick: () => executeMulti(amount, confirm) }, `Confirm ${ws.length > 1 ? `${ws.length} ${side}s` : side}`);
+      return h(
+        'div',
+        { class: 'stack' },
+        h('div', { class: 'quote' }, rows.map(([k, v]) => h('div', {}, h('span', {}, k), h('b', {}, v)))),
+        h('p', { class: 'fine' }, 'Trades go out one wallet after another. A wallet that can’t trade, for example without enough balance, is skipped and listed below.'),
+        confirm,
+        h('button', { class: 'btn btn-ghost btn-sm', type: 'button', onclick: () => quoteBox.replaceChildren() }, 'Cancel'),
+      );
+    }
+
+    async function executeMulti(amount, btn) {
+      const ws = pickedWallets();
+      if (btn) btn.disabled = true;
+      reviewBtn.disabled = true;
+      toast(`Sending ${ws.length > 1 ? `${ws.length} ${side}s` : side}…`, { timeout: 4000 });
+      try {
+        const res = await api('/api/trade', { method: 'POST', body: { chain: chain.key, address, side, amount, walletIds: ws.map((w) => w.id) } });
+        const results = res.multi ? res.results : [{ ok: true, ...res }];
+        const ok = results.filter((r) => r.ok).length;
+        if (ok === results.length) toast(`${ok > 1 ? `${ok} ${side}s` : side === 'buy' ? 'Buy' : 'Sell'} confirmed ✅`);
+        else toast(`${ok} of ${results.length} ${side}s confirmed`, { kind: ok ? 'ok' : 'err' });
+        quoteBox.replaceChildren(resultsView(results));
+        if (ok) onTraded?.();
+      } catch (err) {
+        errorToast(err);
+      } finally {
+        if (btn) btn.disabled = false;
+        reviewBtn.disabled = false;
+      }
+    }
+
+    function resultsView(results) {
+      const label = (r) => r.wallet?.label || 'Wallet';
+      return h(
+        'div',
+        { class: 'quote results' },
+        results.map((r) =>
+          h(
+            'div',
+            {},
+            h('span', {}, `${r.ok ? '✅' : '❌'} ${label(r)}`),
+            r.ok ? (r.txUrl ? h('a', { href: r.txUrl, target: '_blank', rel: 'noopener' }, 'View transaction') : h('b', {}, 'Confirmed')) : h('b', { class: 'down' }, r.error || 'Failed'),
+          ),
+        ),
+      );
+    }
+
     return [
-      h('div', { class: 'row fine' }, h('span', { class: 'grow' }, side === 'buy' ? `Buy with ${chain.native}` : 'Sell a share of your bag'), h('span', {}, `Holding ${holding}`)),
+      picker,
+      h('div', { class: 'row fine' }, h('span', { class: 'grow' }, side === 'buy' ? `Buy with ${chain.native}` : 'Sell a share of your bag'), h('span', { title: 'In your active wallet' }, `Holding ${holding}`)),
       presetRow,
       input,
       reviewBtn,

@@ -200,7 +200,9 @@ function setupLogin() {
 function route() {
   const path = location.hash.replace(/^#/, '').split('?')[0] || '/';
   const query = new URLSearchParams(location.hash.split('?')[1] || '');
-  const found = ROUTES.find(([re]) => re.test(path)) || ROUTES[0];
+  const found = ROUTES.find(([re]) => re.test(path));
+  // Unknown route (old link, typo): go to Discover; the hash change calls route() again
+  if (!found) return location.replace('#/');
   const [re, nav, view] = found;
   for (const a of document.querySelectorAll('[data-nav]')) a.classList.toggle('active', a.dataset.nav === nav);
   cleanup?.();

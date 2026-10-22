@@ -95,8 +95,15 @@ listed as "coming soon" because no aggregator supports it yet.
   - Bot (`commands/lists.js`): `/history`, `/watchlist` (⭐ Watch on token cards toggles), `/tracker`
     (add with `[chain] <address> [name]`, 🔔 toggle, 🗑 remove); `/settings` → 🔴 Sell settings
     ("Same as buy" copies the buy values into `sell` when turned off) and 📉 Max impact per side.
-  - Executes take `walletId` (multi-wallet backend); the trade box UI for it and Discover card metrics /
-    column filters were **not built** (stopped by a safety check — don't retry them).
+  - Multi-wallet trading (2026-10-23, owner request): the token page's Market box has a "Trade from"
+    picker (wallets of the chain's kind, remembered per kind in localStorage). The active wallet alone uses
+    the quoted flow; any other pick confirms a plan (each wallet pays / sells, total, fee) and posts
+    `walletIds` to `/api/trade`, which trades them one after another and returns a result per wallet.
+    Limit and DCA still run from the active wallet.
+  - Discover cards show compact metric chips (one `/api/metrics` call for every token on screen; EVM /
+    fresh-launch values fill in on the next 30 s refresh). Each column has its own filters (liquidity,
+    market cap, 24h volume, age, holders, top 10, dev, bundled) in `apex.discover.filters`; a token with no
+    value for a filter stays visible. Discover's route is `#/`; unknown routes redirect there.
   - Webapp: ticker, token tabs (Top traders, Holders, Bubble map, My trades, `?tab=`), Watchlist, Tracker,
     Positions → History, Settings buy/sell, Wallets import / remove / PIN. `replaceChildren()` prints a
     `null` child as text: pass `''` or filter. The header is `header.top` (`.row.top` collided with it).
