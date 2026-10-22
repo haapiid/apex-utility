@@ -100,6 +100,9 @@ const config = {
     enabled: process.env.WEB_ENABLED !== 'false',
     port: int('WEB_PORT', 8080),
     publicUrl: (process.env.WEB_PUBLIC_URL || `http://localhost:${int('WEB_PORT', 8080)}`).replace(/\/$/, ''),
+    // Behind a reverse proxy (Nginx): listen on 127.0.0.1 only, and take the visitor's IP from X-Real-IP
+    host: process.env.WEB_HOST || undefined,
+    trustProxy: process.env.WEB_TRUST_PROXY === '1',
   },
   // Optional "Log in with Google" on ApeX Pro (OAuth client from Google Cloud; redirect URI =
   // WEB_PUBLIC_URL + /api/auth/google/callback). Hidden when unset.

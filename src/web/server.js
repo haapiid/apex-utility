@@ -117,7 +117,9 @@ function readBody(req) {
   });
 }
 
-const clientIp = (req) => req.socket.remoteAddress || 'unknown';
+// Rate limits are per IP. Behind Nginx every request comes from 127.0.0.1, so trust X-Real-IP then
+// (only with WEB_TRUST_PROXY=1: without a proxy that sets it, the header could be forged).
+const clientIp = (req) => (config.web.trustProxy && req.headers['x-real-ip']) || req.socket.remoteAddress || 'unknown';
 
 function originAllowed(req) {
   const origin = req.headers.origin;

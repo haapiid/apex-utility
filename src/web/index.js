@@ -7,7 +7,7 @@ const logger = require('../utils/logger');
 // login and referral links). Returns a function that stops the server.
 function startWeb(app = {}) {
   const server = createWebServer(buildRoutes(app));
-  server.listen(config.web.port, () => logger.info({ port: config.web.port, url: config.web.publicUrl }, '🌐 ApeX Pro is running'));
+  server.listen(config.web.port, config.web.host, () => logger.info({ port: config.web.port, url: config.web.publicUrl }, '🌐 ApeX Pro is running'));
   server.on('error', (err) => logger.error({ err: err.message, port: config.web.port }, 'ApeX Pro could not start'));
   return () => server.close();
 }
