@@ -9,9 +9,16 @@ const safetyService = require('../services/safetyService');
 const webAuthService = require('../services/webAuthService');
 const accountService = require('../services/accountService');
 const notificationService = require('../services/notificationService');
-const { withTimeout, UserError } = require('../services/tradeCommon');
+const pumpService = require('../services/pumpService');
+const pumpFeed = require('../services/pumpFeed');
+const tokenMetrics = require('../services/tokenMetrics');
+const historyService = require('../services/historyService');
+const pinService = require('../services/pinService');
+const watchlistService = require('../services/watchlistService');
+const trackerService = require('../services/trackerService');
+const { withTimeout, UserError, friendlyError } = require('../services/tradeCommon');
 const { config, isSolanaAddress } = require('../config');
-const { allChains, getChain, isEvmAddress, txLink } = require('../config/chains');
+const { allChains, getChain, isEvmAddress, txLink, addressLink } = require('../config/chains');
 const { toUnits } = require('../utils/format');
 const { HttpError, sessionCookie } = require('./server');
 
@@ -38,7 +45,7 @@ function startSession(userId, req, setCookie) {
 }
 
 const owner = (userId, chain) => (userId ? walletService.getWallet(userId, chain.kind)?.address : undefined);
-const chainView = (c) => ({ key: c.key, name: c.name, kind: c.kind, native: c.native, decimals: c.decimals, buyPresets: c.buyPresets, claimMin: c.claimMin });
+const chainView = (c) => ({ key: c.key, name: c.name, kind: c.kind, native: c.native, decimals: c.decimals, buyPresets: c.buyPresets, claimMin: c.claimMin, explorer: addressLink(c, ''), txExplorer: txLink(c, '') });
 const tokenView = (t) => ({ address: t.address, name: t.name, symbol: t.symbol, decimals: t.decimals, balance: t.balance, usdPrice: t.usdPrice });
 
 function quoteView(chain, side, q) {
@@ -67,13 +74,13 @@ function tradeArgs(body) {
 
 // ---------- settings validation (same limits as the bot) ----------
 
-function settingsPatch(body) {
+const inRange = (n, [min, max]) => Number.isFinite(n) && n >= min && n <= max;
+
+// Fields that can differ between buys and sells (settingsService.SIDE_FIELDS)
+function sideFieldsPatch(body) {
   const { LIMITS, GAS_BOOST_STEPS } = settingsService;
   const patch = {};
-  const inRange = (n, [min, max]) => Number.isFinite(n) && n >= min && n <= max;
-  for (const key of ['mevProtect', 'confirmTrades', 'antiRug']) {
-    if (key in body) patch[key] = Boolean(body[key]);
-  }
+  if ('mevProtect' in body) patch.mevProtect = Boolean(body.mevProtect);
   if (body.slippagePct) {
     for (const kind of ['sol', 'evm']) {
       if (body.slippagePct[kind] == null) continue;
@@ -97,6 +104,22 @@ function settingsPatch(body) {
     if (!GAS_BOOST_STEPS.includes(n)) throw new HttpError(400, `Gas boost must be one of ${GAS_BOOST_STEPS.join(', ')}`);
     patch.gasBoostPct = n;
   }
+  if (body.maxImpactPct != null) {
+    const n = Number(body.maxImpactPct);
+    if (!inRange(n, LIMITS.maxImpactPct)) throw new HttpError(400, `Price impact limit must be ${LIMITS.maxImpactPct.join('–')}% (0 = off)`);
+    patch.maxImpactPct = n;
+  }
+  return patch;
+}
+
+function settingsPatch(body) {
+  const { LIMITS } = settingsService;
+  const patch = sideFieldsPatch(body);
+  for (const key of ['confirmTrades', 'antiRug']) {
+    if (key in body) patch[key] = Boolean(body[key]);
+  }
+  // Sell side: its own values, or null to follow the buy side again. Replaced as a whole.
+  if ('sell' in body) patch.sell = body.sell ? sideFieldsPatch(body.sell) : {};
   if (body.antiRugDropPct != null) {
     const n = Number(body.antiRugDropPct);
     if (!inRange(n, LIMITS.antiRugDropPct)) throw new HttpError(400, `Anti-rug trigger must be ${LIMITS.antiRugDropPct.join('–')}%`);
@@ -127,6 +150,8 @@ function settingsView(userId) {
   return {
     ...s,
     buyPresetsResolved: Object.fromEntries(tradable().map((c) => [c.key, settingsService.buyPresets(s, c)])),
+    // What sells actually use (buy values where the sell side has none of its own)
+    sellResolved: Object.fromEntries(settingsService.SIDE_FIELDS.map((k) => [k, settingsService.sideSettings(s, 'sell')[k]])),
   };
 }
 
@@ -153,7 +178,15 @@ function buildRoutes(app) {
       if (params.list === 'trending') return marketData.trending(chain, query.duration);
       if (params.list === 'new') return marketData.newPairs(chain);
       if (params.list === 'boosted') return marketData.boosted(chain);
+      if (params.list === 'ticker') return marketData.ticker(chain);
       throw new HttpError(404, 'Unknown list');
+    }),
+
+    // Card metrics (holders, top 10, dev, bundled, snipers) for up to 100 tokens of one chain
+    r('GET', '/api/metrics', async ({ query }) => {
+      const chain = chainOf(query.chain || 'sol');
+      const list = String(query.tokens || '').split(',').map((a) => a.trim()).filter((a) => (chain.kind === 'sol' ? isSolanaAddress(a) : isEvmAddress(a)));
+      return tokenMetrics.metrics(chain, list);
     }),
 
     r('GET', '/api/search', async ({ query }) => {
@@ -200,6 +233,32 @@ function buildRoutes(app) {
       const pool = query.pool || (await marketData.tokenOverview(chain, address))?.pool;
       if (!pool) return [];
       return marketData.trades(chain, pool, address);
+    }),
+
+    r('GET', '/api/token/:chain/:address/traders', async ({ params, query }) => {
+      const chain = chainOf(params.chain);
+      const address = tokenAddress(chain, params.address);
+      const pool = query.pool || (await marketData.tokenOverview(chain, address))?.pool;
+      if (!pool) return { window: 0, since: null, rows: [] };
+      return marketData.topTraders(chain, pool, address);
+    }),
+
+    r('GET', '/api/token/:chain/:address/holders', async ({ params }) => {
+      const chain = chainOf(params.chain);
+      const address = tokenAddress(chain, params.address);
+      try {
+        return await withTimeout(tokenMetrics.holders(chain, address), 20_000);
+      } catch (err) {
+        throw new UserError(/rate limited|429|timed out/i.test(err.message) ? 'The holder list is rate-limited on the public RPC right now. Try again in a minute (a private RPC fixes this).' : 'Could not load holders for this token.');
+      }
+    }),
+
+    r('GET', '/api/token/:chain/:address/metrics', async ({ params }) => {
+      const chain = chainOf(params.chain);
+      const address = tokenAddress(chain, params.address);
+      const m = (await tokenMetrics.metrics(chain, [address]))[address];
+      const launch = chain.kind === 'sol' ? await withTimeout(tokenMetrics.launch(address), 25_000).catch(() => null) : null;
+      return { ...m, ...(launch || {}) };
     }),
 
     // --- auth: Telegram code, wallet signature, Google. While logged in, each of them links instead. ---
@@ -262,6 +321,7 @@ function buildRoutes(app) {
         wallets: walletService.listWallets(userId),
         walletLimit: walletService.walletLimit(userId),
         settings: settingsView(userId),
+        hasPin: pinService.hasPin(userId),
         credits,
         extraWalletSlots: slots,
       };
@@ -319,12 +379,111 @@ function buildRoutes(app) {
       async ({ userId, params, body, limited }) => {
         if (limited('export', 5, 10 * 60_000)) throw new HttpError(429, 'Too many exports. Try again later.');
         if (body.confirm !== 'EXPORT') throw new HttpError(400, 'Type EXPORT to confirm.');
+        pinService.verify(userId, body.pin);
         const wallet = walletService.getWalletById(userId, Number(params.id));
         if (!wallet) throw new HttpError(404, 'Wallet not found');
         return { kind: wallet.kind, address: wallet.address, privateKey: walletService.exportPrivateKey(userId, wallet.id) };
       },
       true,
     ),
+    // Import a wallet by private key (Solana base58 / JSON array, or EVM 0x hex). Needs the PIN when set.
+    r(
+      'POST',
+      '/api/wallets/import',
+      async ({ userId, body, limited }) => {
+        if (limited('import', 5, 10 * 60_000)) throw new HttpError(429, 'Too many imports. Try again later.');
+        pinService.verify(userId, body.pin);
+        try {
+          return walletService.importWallet(userId, String(body.secret || '').trim());
+        } catch (err) {
+          if (err.code === 'limit') throw new UserError(`You can have up to ${walletService.walletLimit(userId)} wallets of this kind.`);
+          if (err.code === 'duplicate') throw new UserError('That wallet is already in your account.');
+          throw err instanceof UserError ? err : new UserError('That doesn’t look like a Solana or EVM private key.');
+        }
+      },
+      true,
+    ),
+    r(
+      'POST',
+      '/api/wallets/:id/remove',
+      async ({ userId, params, body }) => {
+        pinService.verify(userId, body.pin);
+        if (body.confirm !== 'REMOVE') throw new HttpError(400, 'Type REMOVE to confirm.');
+        if (!walletService.removeWallet(userId, Number(params.id))) throw new HttpError(404, 'Wallet not found');
+        return { ok: true };
+      },
+      true,
+    ),
+
+    // --- security PIN ---
+    r(
+      'POST',
+      '/api/pin',
+      async ({ userId, body, limited }) => {
+        if (limited('pin', 10)) throw new HttpError(429, 'Too many attempts. Wait a minute.');
+        if (body.remove) pinService.removePin(userId, body.current);
+        else pinService.setPin(userId, body.pin, body.current);
+        return { hasPin: pinService.hasPin(userId) };
+      },
+      true,
+    ),
+
+    // --- history, watchlist, wallet tracker ---
+    r('GET', '/api/history', async ({ userId, query }) => historyService.list(userId, query), true),
+    r('GET', '/api/watchlist', async ({ userId }) => watchlistService.list(userId), true),
+    // Watchlist with each token's best pair (DexScreener, 30 tokens per call per chain)
+    r(
+      'GET',
+      '/api/watchlist/overview',
+      async ({ userId }) => {
+        const list = watchlistService.list(userId);
+        const byChain = new Map();
+        for (const w of list) byChain.set(w.chain, [...(byChain.get(w.chain) || []), w.token]);
+        const found = new Map();
+        await Promise.all(
+          [...byChain].map(async ([key, tokens]) => {
+            const chain = getChain(key);
+            if (!chain?.tradable) return;
+            for (let i = 0; i < tokens.length; i += 30) {
+              const batch = tokens.slice(i, i + 30);
+              const pairs = await marketData.tokenPairs(chain, batch).catch(() => []);
+              for (const t of batch) {
+                const best = pairs.filter((p) => String(p.token.address).toLowerCase() === t.toLowerCase()).sort((a, b) => (b.liquidity || 0) - (a.liquidity || 0))[0];
+                if (best) found.set(`${key}:${t}`, best);
+              }
+            }
+          }),
+        );
+        return list.map((w) => ({ ...w, pair: found.get(`${w.chain}:${w.token}`) || null }));
+      },
+      true,
+    ),
+    r(
+      'POST',
+      '/api/watchlist',
+      async ({ userId, body }) => {
+        const chain = chainOf(body.chain);
+        const token = tokenAddress(chain, String(body.token || ''));
+        if (body.remove) watchlistService.remove(userId, chain, token);
+        else watchlistService.add(userId, chain, token);
+        return watchlistService.list(userId);
+      },
+      true,
+    ),
+    r('GET', '/api/tracker', async ({ userId, query }) => ({ wallets: trackerService.list(userId), events: trackerService.events(userId, { trackId: query.wallet, limit: query.limit }) }), true),
+    r('POST', '/api/tracker', async ({ userId, body }) => trackerService.add(userId, chainOf(body.chain), String(body.address || '').trim(), body.label), true),
+    r(
+      'POST',
+      '/api/tracker/:id',
+      async ({ userId, params, body }) => {
+        if (body.remove) return { ok: trackerService.remove(userId, Number(params.id)) };
+        const row = trackerService.update(userId, Number(params.id), body);
+        if (!row) throw new HttpError(404, 'Not found');
+        return row;
+      },
+      true,
+    ),
+
     r(
       'POST',
       '/api/wallets/:id/active',
@@ -345,9 +504,18 @@ function buildRoutes(app) {
         const wallet = walletService.getWallet(userId, chain.kind);
         if (!wallet) throw new UserError(`Create a ${walletService.KIND_LABEL[chain.kind]} wallet first.`);
         const svc = markets.serviceFor(chain);
-        const opts = settingsService.tradeOptions(userId, chain, 'manual');
+        const opts = settingsService.tradeOptions(userId, chain, 'manual', side);
         const q = side === 'buy' ? await svc.quoteBuy(address, amount, wallet.address, opts) : await svc.quoteSell(address, amount, wallet.address, opts);
-        return { ...quoteView(chain, side, q), wallet: { label: wallet.label, address: wallet.address }, slippageBps: opts.slippageBps, mevProtect: opts.mevProtect, mev: markets.mevLabel(chain) };
+        const over = opts.maxImpactPct > 0 && q.priceImpactPct != null && q.priceImpactPct > opts.maxImpactPct;
+        return {
+          ...quoteView(chain, side, q),
+          wallet: { label: wallet.label, address: wallet.address },
+          slippageBps: opts.slippageBps,
+          mevProtect: opts.mevProtect,
+          mev: markets.mevLabel(chain),
+          maxImpactPct: opts.maxImpactPct,
+          impactBlocked: over,
+        };
       },
       true,
     ),
@@ -358,8 +526,24 @@ function buildRoutes(app) {
         if (limited('trade', 20)) throw new HttpError(429, 'Too many trades in a minute.');
         const { chain, address, side, amount } = tradeArgs(body);
         const svc = markets.serviceFor(chain);
-        const result = side === 'buy' ? await svc.executeBuy(userId, address, amount) : await svc.executeSell(userId, address, amount);
-        return { signature: result.signature, txUrl: txLink(chain, result.signature), received: result.received ?? null, chain: chain.key };
+        const run = (walletId) => (side === 'buy' ? svc.executeBuy(userId, address, amount, { walletId }) : svc.executeSell(userId, address, amount, { walletId }));
+        const view = (result) => ({ signature: result.signature, txUrl: txLink(chain, result.signature), received: result.received ?? null, chain: chain.key, wallet: result.wallet });
+        if (!Array.isArray(body.walletIds) || !body.walletIds.length) return view(await run(undefined));
+
+        // Multi-wallet: every wallet must be the user's and of this chain's kind; each trade reports on its own
+        const ids = [...new Set(body.walletIds.map(Number))];
+        if (ids.length > walletService.walletLimit(userId)) throw new HttpError(400, 'Too many wallets');
+        const wallets = ids.map((id) => walletService.getWalletById(userId, id));
+        if (wallets.some((w) => !w || w.kind !== chain.kind)) throw new HttpError(400, `Pick ${walletService.KIND_LABEL[chain.kind]} wallets only`);
+        const results = [];
+        for (const w of wallets) {
+          try {
+            results.push({ ok: true, ...view(await run(w.id)) });
+          } catch (err) {
+            results.push({ ok: false, wallet: { id: w.id, label: w.label }, error: friendlyError(err) });
+          }
+        }
+        return { multi: true, results };
       },
       true,
     ),
@@ -410,8 +594,28 @@ function buildRoutes(app) {
       '/api/snipes',
       async ({ userId, body }) => {
         const chain = chainOf(body.chain);
-        return automation.createSnipe(userId, chain, body.address, body.amount, body.safety !== false);
+        return automation.createSnipe(userId, chain, body.address, body.amount, body.safety !== false, body.trigger === 'migration' ? 'migration' : 'tradable');
       },
+      true,
+    ),
+    // Public: latest pump.fun launches and migrations from the feed
+    r('GET', '/api/pump/live', async () => pumpFeed.live()),
+    r(
+      'GET',
+      '/api/pump',
+      async ({ userId }) => ({ rules: pumpService.listRules(userId), recent: pumpService.recentBuys(userId, 15), feed: pumpFeed.status() }),
+      true,
+    ),
+    r(
+      'POST',
+      '/api/pump',
+      async ({ userId, body }) =>
+        pumpService.createRule(userId, String(body.mode || ''), body.amount, {
+          maxBuys: body.maxBuys,
+          keyword: body.keyword,
+          maxDevPct: body.maxDevPct,
+          safety: body.safety !== false,
+        }),
       true,
     ),
     r(
@@ -436,7 +640,7 @@ function buildRoutes(app) {
       'POST',
       '/api/cancel/:kind/:id',
       async ({ userId, params }) => {
-        const cancel = { order: automation.cancelOrder, dca: automation.cancelDca, snipe: automation.cancelSnipe, copy: automation.removeCopyTarget }[params.kind];
+        const cancel = { order: automation.cancelOrder, dca: automation.cancelDca, snipe: automation.cancelSnipe, copy: automation.removeCopyTarget, pump: pumpService.stopRule }[params.kind];
         if (!cancel) throw new HttpError(404, 'Unknown kind');
         return { ok: cancel(userId, Number(params.id)) };
       },

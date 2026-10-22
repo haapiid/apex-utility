@@ -70,8 +70,35 @@ listed as "coming soon" because no aggregator supports it yet.
   the order's own size (`sellPrice` / `buyPrice`), so triggers include price impact.
 - `src/services/safetyService.js` — token scan: GoPlus (Ethereum, BSC, Base, Robinhood, Solana) + Solana
   freeze/mint authority from the mint account; sell-route check where GoPlus has no coverage.
+- `src/services/pumpFeed.js` + `pumpService.js` — pump.fun sniper. PumpPortal's free WebSocket
+  (`PUMP_FEED_URL`, Node's built-in WebSocket) streams new tokens and migrations; it is connected only
+  while a pump rule / migration snipe is active or ApeX Pro's live list was viewed in the last minute.
+  Rules (`pump_rules`): `launch` (filters: keyword in name/symbol, max dev buy %) or `migration`, SOL per
+  buy, `max_buys` budget. `pump_buys` dedupes per rule + mint (and per user + mint). Stage check via the
+  Jupiter route label: `Pump.fun` = bonding curve, anything else (`Pump.fun Amm`, …) = migrated; Jupiter
+  routes a fresh launch in ~2–5 s. Per-token snipes have `trigger` `tradable` | `migration` (7-day TTL).
+  A rule stops itself (one message) when the wallet is out of SOL; launch-rule failures only show in
+  the Recent list. Bot: `/pump`, `/snipe <mint> <sol> migration`. ApeX Pro: `#/pump`.
+- ApeX Pro extras (2026-10-22):
+  - `tokenMetrics.js` — holders / top 10 % / dev % (Solana: Jupiter Tokens API, 100 per call; EVM: GoPlus,
+    one token per call, queued) and Solana launch stats (bundled = bought in the launch slot, snipers =
+    first buys in the next 3 slots; program/pool owners excluded), stored in `token_launch`. Holders list:
+    Jupiter's **undocumented** data API (`datapi.jup.ag`, top 100 + funding wallet → bubble-map clusters),
+    falling back to the RPC's top 20. `marketData.topTraders` = realized PnL over the last 300 trades.
+  - `solanaRpc.js` — raw JSON-RPC (paced, 429 retry) because web3.js v1 rejects **version-1
+    transactions**; `walletActivity.js` (shared by copy trading and the wallet tracker) uses it.
+  - Settings: top-level trade fields = buy side, `sell` = sell overrides (`sideSettings`,
+    `tradeOptions(..., side)`). `maxImpactPct` blocks buys and manual sells only (`checkImpact`);
+    automated sells (stop loss, `antirug` source, DCA, copy) always go through.
+  - `historyService`, `watchlistService`, `trackerService` + `workers/tracker.js` (15 s, events kept 7 days),
+    `pinService` (scrypt, 5 tries → 15 min lock; guards web export / import / remove, not the bot).
+  - Executes take `walletId` (multi-wallet backend); the trade box UI for it and Discover card metrics /
+    column filters were **not built** (stopped by a safety check — don't retry them).
+  - Webapp: ticker, token tabs (Top traders, Holders, Bubble map, My trades, `?tab=`), Watchlist, Tracker,
+    Positions → History, Settings buy/sell, Wallets import / remove / PIN. `replaceChildren()` prints a
+    `null` child as text: pass `''` or filter. The header is `header.top` (`.row.top` collided with it).
 - `src/workers/` — background jobs started in `index.js` after the bot connects (`startWorkers(notify)`):
-  sniper 4 s, copy 10 s, orders 15 s, anti-rug 20 s, DCA 30 s. Each never overlaps itself. `common.attempt()`
+  sniper 4 s, pump 2 s, copy 10 s, tracker 15 s, orders 15 s, anti-rug 20 s, DCA 30 s. Each never overlaps itself. `common.attempt()`
   classifies outcomes: `busy` (user lock, retry silently), `user`/`error` (count an attempt, 3 → failed).
   Everything trades from the user's **active** wallet. Copy trading only mirrors transactions the target
   signed (Solana: token balance deltas; EVM: ERC-20 Transfer logs + tx.value > 0 for buys). Anti-rug is
@@ -196,6 +223,9 @@ folder** so they load; approve the two project MCP servers the first time.
   banana hand reaching over the phone's left edge. Below 700px it peeks over the phone's top instead.
   No other mascot images on the page (the owner removed the Features, Revenue and footer poses).
 - Hero must stay **compact**.
+- "ApeX Pro" section (2026-10-22, after Features): text + a dark HTML "screen" of ApeX Pro's pump.fun page
+  (sample data, no images). Every ApeX Pro link has `data-pro`; on localhost/LAN `main.js` points them at
+  port 8080, elsewhere the HTML `href` is used — set it to the public ApeX Pro URL before deploying.
 - "Where your 0.5% goes" (2026-10-21): the owner **removed the split banana and the Win pose** (the
   scattered candles looked blotchy). It shows a clean, still trading chart (`website/art/chart.js` →
   paste `chart.inline.svg`), with its top-right corner kept free for **the mascot riding a rocket** —
@@ -237,5 +267,5 @@ lightly funded).
 - Revenue share counts only $APEX held in ApeX wallets. Wallets linked as logins in ApeX Pro are not
   counted yet (could be added to `snapshotHolders`).
 - ApeX Pro needs HTTPS in production (`WEB_PUBLIC_URL=https://…` makes the cookie Secure) and a domain;
-  register the Google redirect URI there. The landing page still only links to the bot: add ApeX Pro.
+  register the Google redirect URI there. Set the landing page's `data-pro` links to that URL.
 - A security review/audit of the custodial wallet code before real users.

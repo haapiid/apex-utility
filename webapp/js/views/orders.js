@@ -14,6 +14,7 @@ export default function orders(container) {
   const sAddr = h('input', { class: 'input mono', placeholder: 'Token address (it may not exist yet)', spellcheck: 'false' });
   const sAmount = h('input', { class: 'input mono', inputmode: 'decimal', placeholder: 'Amount', value: '0.1' });
   const sSafe = h('input', { type: 'checkbox', checked: true });
+  const sMigration = h('input', { type: 'checkbox' });
   const snipeForm = h(
     'form',
     {
@@ -21,8 +22,8 @@ export default function orders(container) {
       onsubmit: async (e) => {
         e.preventDefault();
         try {
-          await api('/api/snipes', { method: 'POST', body: { chain: sChain.value, address: sAddr.value.trim(), amount: sAmount.value, safety: sSafe.checked } });
-          toast('Snipe armed 🎯 It buys as soon as the token is tradable.');
+          await api('/api/snipes', { method: 'POST', body: { chain: sChain.value, address: sAddr.value.trim(), amount: sAmount.value, safety: sSafe.checked, trigger: sMigration.checked ? 'migration' : 'tradable' } });
+          toast(sMigration.checked ? 'Snipe armed 🎓 It buys the moment the token migrates to PumpSwap.' : 'Snipe armed 🎯 It buys as soon as the token is tradable.');
           sAddr.value = '';
           load();
         } catch (err) {
@@ -33,6 +34,8 @@ export default function orders(container) {
     h('div', { class: 'row wrap' }, h('label', { class: 'field' }, 'Chain', sChain), h('label', { class: 'field grow' }, 'Amount', sAmount)),
     h('label', { class: 'field' }, 'Token', sAddr),
     h('label', { class: 'row fine' }, sSafe, 'Safety filter: skip honeypots, high taxes and freeze authority'),
+    h('label', { class: 'row fine' }, sMigration, 'pump.fun (Solana): wait until it migrates to PumpSwap'),
+    h('p', { class: 'fine' }, h('a', { href: '#/pump', class: 'up' }, '💊 Auto-snipe every pump.fun launch or migration →')),
     h('button', { class: 'btn btn-yellow', type: 'submit' }, `Arm snipe (fee ${fmtNum(state.config.fees.snipeBps / 100, 2)}%)`),
   );
 
@@ -103,7 +106,7 @@ export default function orders(container) {
       lists.snipes.replaceChildren(
         ...(data.snipes.length
           ? data.snipes.map((s) =>
-              h('div', { class: 'line-item' }, h('div', {}, h('b', { class: 'mono' }, `🎯 ${short(s.token, 6)}`), h('div', { class: 'fine' }, `${chainInfo(s.chain)?.name} · ${s.amount} ${chainInfo(s.chain)?.native} · waiting ${ago(s.created_at)} · safety ${s.safety ? 'on' : 'off'}`)), cancelBtn('snipe', s.id)),
+              h('div', { class: 'line-item' }, h('div', {}, h('b', { class: 'mono' }, `🎯 ${short(s.token, 6)}`), h('div', { class: 'fine' }, `${chainInfo(s.chain)?.name} · ${s.amount} ${chainInfo(s.chain)?.native} · ${s.trigger === 'migration' ? 'waiting for migration' : 'waiting'} ${ago(s.created_at)} · safety ${s.safety ? 'on' : 'off'}`)), cancelBtn('snipe', s.id)),
             )
           : [empty('No active snipes.')]),
       );

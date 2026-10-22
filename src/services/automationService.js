@@ -11,6 +11,7 @@ const { toUnits, fromUnits } = require('../utils/format');
 const DAY_MS = 24 * 60 * 60 * 1000;
 const ORDER_TTL_MS = 7 * DAY_MS;
 const SNIPE_TTL_MS = DAY_MS;
+const MIGRATION_TTL_MS = 7 * DAY_MS; // most pump.fun tokens never graduate; give the ones that do time
 const MAX_OPEN = { orders: 20, dca: 10, snipes: 10, copy: 10 };
 const ORDER_TYPES = ['limit_buy', 'take_profit', 'stop_loss'];
 
@@ -180,8 +181,18 @@ const cancelDca = (userId, id) =>
 
 // ---------- Snipes ----------
 
-// The token may not exist or have liquidity yet: the sniper buys as soon as a route appears
-function createSnipe(userId, chain, address, amount, safety = true) {
+const SNIPE_TRIGGERS = ['tradable', 'migration'];
+
+// The token may not exist or have liquidity yet: the sniper buys as soon as a route appears.
+// trigger 'migration' (pump.fun, Solana): wait until the token leaves the bonding curve for PumpSwap.
+async function createSnipe(userId, chain, address, amount, safety = true, trigger = 'tradable') {
+  if (!SNIPE_TRIGGERS.includes(trigger)) throw new UserError('Unknown snipe trigger.');
+  if (trigger === 'migration') {
+    if (chain.kind !== 'sol') throw new UserError('Migration snipes are for pump.fun tokens on Solana.');
+    if (isSolanaAddress(address) && (await require('./pumpService').pumpStage(address)) === 'migrated') {
+      throw new UserError('This token doesn’t trade on the pump.fun bonding curve (already migrated, or not a pump.fun token). Use a normal snipe or just buy it.');
+    }
+  }
   if (chain.kind === 'sol' ? !isSolanaAddress(address) : !isEvmAddress(address)) throw new UserError(`That is not a ${chain.name} token address.`);
   if (countOpen('snipes', userId, ['waiting']) >= MAX_OPEN.snipes) throw new UserError(`You can have up to ${MAX_OPEN.snipes} active snipes.`);
   requireWallet(userId, chain);
@@ -189,10 +200,10 @@ function createSnipe(userId, chain, address, amount, safety = true) {
   const now = Date.now();
   const { lastInsertRowid } = db
     .prepare(
-      `INSERT INTO snipes (user_id, chain, token, amount, safety, expires_at, created_at, updated_at)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+      `INSERT INTO snipes (user_id, chain, token, amount, safety, trigger, expires_at, created_at, updated_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
     )
-    .run(userId, chain.key, address, String(amount).trim(), safety ? 1 : 0, now + SNIPE_TTL_MS, now, now);
+    .run(userId, chain.key, address, String(amount).trim(), safety ? 1 : 0, trigger, now + (trigger === 'migration' ? MIGRATION_TTL_MS : SNIPE_TTL_MS), now, now);
   return db.prepare('SELECT * FROM snipes WHERE id = ?').get(Number(lastInsertRowid));
 }
 
@@ -252,6 +263,7 @@ const removeCopyTarget = (userId, id) => db.prepare('DELETE FROM copy_targets WH
 
 module.exports = {
   ORDER_TYPES,
+  SNIPE_TRIGGERS,
   sellPrice,
   buyPrice,
   parseInterval,

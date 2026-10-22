@@ -13,18 +13,20 @@ function mainMenu() {
     .text('🤖 Orders', 'menu:orders')
     .row()
     .text('🎯 Sniper', 'menu:snipe')
+    .text('💊 pump.fun', 'menu:pump')
+    .row()
     .text('👥 Copy Trade', 'menu:copy')
-    .row()
     .text('💰 Rewards', 'menu:rewards')
-    .text('🎁 Referral', 'menu:referral')
     .row()
-    .text('⚙️ Settings', 'menu:settings')
+    .text('🎁 Referral', 'menu:referral')
     .text('🍌 Revenue Share', 'menu:revenue')
     .row()
-    .text('🌐 ApeX Pro (web)', 'menu:web')
+    .text('⚙️ Settings', 'menu:settings')
     .text('⛽ Fees', 'menu:gas')
     .row()
+    .text('🌐 ApeX Pro (web)', 'menu:web')
     .text('🛡️ Security', 'menu:security')
+    .row()
     .text('❓ Help', 'menu:help');
 }
 
@@ -104,6 +106,16 @@ function ordersMenu(items) {
     if (i % 2 === 1) kb.row();
   });
   return kb.row().text('🔄 Refresh', 'menu:orders').add(backButton());
+}
+
+// rules: pumpService.listRules(userId), one stop button each
+function pumpMenu(rules) {
+  const kb = new InlineKeyboard();
+  rules.forEach((r, i) => {
+    kb.text(`⏹ Stop rule ${i + 1}`, `pr:x:${r.id}`);
+    if (i % 2 === 1) kb.row();
+  });
+  return kb.row().text('🔄 Refresh', 'menu:pump').add(backButton());
 }
 
 function copyMenu(targets) {
@@ -240,6 +252,7 @@ module.exports = {
   orderTypeMenu,
   dcaTypeMenu,
   ordersMenu,
+  pumpMenu,
   copyMenu,
   copyDetailMenu,
   settingsMenu,

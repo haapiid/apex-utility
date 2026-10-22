@@ -209,12 +209,12 @@ async function candles(chain, pool, tf = '15m') {
   });
 }
 
-// Recent trades of a pool: [{ time (ms), side, usd, tokenAmount, priceUsd, maker, tx }]
-async function trades(chain, pool, tokenAddress) {
+// Recent trades of a pool (GeckoTerminal keeps the last 300): [{ time (ms), side, usd, tokenAmount, priceUsd, maker, tx }]
+async function allTrades(chain, pool, tokenAddress) {
   if (!chain.gecko) return [];
   return cached(`trades:${chain.key}:${pool}`, 20_000, async () => {
     const data = await geckoGet(`/networks/${chain.gecko}/pools/${pool}/trades`);
-    return (data.data || []).slice(0, 60).map(({ attributes: t }) => {
+    return (data.data || []).map(({ attributes: t }) => {
       const side = t.kind === 'sell' ? 'sell' : 'buy';
       const tokenIsFrom = tokenAddress && sameAddress(chain, t.from_token_address, tokenAddress);
       return {
@@ -228,6 +228,36 @@ async function trades(chain, pool, tokenAddress) {
       };
     });
   });
+}
+
+const trades = async (chain, pool, tokenAddress) => (await allTrades(chain, pool, tokenAddress)).slice(0, 60);
+
+// Wallets ranked by realized PnL over the pool's last 300 trades (sold USD − bought USD)
+async function topTraders(chain, pool, tokenAddress) {
+  const rows = await allTrades(chain, pool, tokenAddress);
+  const byMaker = new Map();
+  for (const t of rows) {
+    if (!t.maker) continue;
+    const m = byMaker.get(t.maker) || { maker: t.maker, buys: 0, sells: 0, boughtUsd: 0, soldUsd: 0, boughtTokens: 0, soldTokens: 0 };
+    if (t.side === 'buy') {
+      m.buys++;
+      m.boughtUsd += t.usd || 0;
+      m.boughtTokens += t.tokenAmount || 0;
+    } else {
+      m.sells++;
+      m.soldUsd += t.usd || 0;
+      m.soldTokens += t.tokenAmount || 0;
+    }
+    byMaker.set(t.maker, m);
+  }
+  return {
+    window: rows.length,
+    since: rows.length ? Math.min(...rows.map((t) => t.time)) : null,
+    rows: [...byMaker.values()]
+      .map((m) => ({ ...m, pnlUsd: m.soldUsd - m.boughtUsd, volumeUsd: m.boughtUsd + m.soldUsd }))
+      .sort((a, b) => b.pnlUsd - a.pnlUsd || b.volumeUsd - a.volumeUsd)
+      .slice(0, 30),
+  };
 }
 
 // Free-text search across our chains
@@ -250,4 +280,14 @@ async function search(query, chains) {
   });
 }
 
-module.exports = { trending, newPairs, boosted, tokenPairs, tokenOverview, candles, trades, search, TIMEFRAMES, TRENDING_DURATIONS };
+// Top bar ticker: [{ chain, token: { address, symbol, image }, priceUsd, change1h, mcap }]
+async function ticker(chain) {
+  if (chain.kind === 'sol') {
+    const list = await require('./tokenMetrics').solanaTrending();
+    return list.slice(0, 20).map((t) => ({ chain: chain.key, token: { address: t.address, symbol: t.symbol, image: t.image }, priceUsd: t.priceUsd, change1h: t.change1h, mcap: t.mcap }));
+  }
+  const rows = await trending(chain, '1h');
+  return rows.slice(0, 20).map((p) => ({ chain: p.chain, token: p.token, priceUsd: p.priceUsd, change1h: p.change?.h1 ?? null, mcap: p.mcap }));
+}
+
+module.exports = { trending, newPairs, boosted, tokenPairs, tokenOverview, candles, trades, topTraders, ticker, search, TIMEFRAMES, TRENDING_DURATIONS };

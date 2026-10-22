@@ -230,6 +230,92 @@ const MIGRATIONS = [
   );
   CREATE INDEX notifications_user ON notifications (user_id, id);
   `,
+  // pump.fun sniper: standing rules that buy new launches or migrations from the PumpPortal feed,
+  // and per-token snipes that wait for the token to migrate off the bonding curve
+  `
+  CREATE TABLE pump_rules (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    user_id INTEGER NOT NULL,
+    mode TEXT NOT NULL,                    -- launch | migration
+    amount TEXT NOT NULL,                  -- SOL per buy
+    max_buys INTEGER NOT NULL,             -- the rule stops after this many buys
+    buys_done INTEGER NOT NULL DEFAULT 0,
+    keyword TEXT,                          -- launch only: name or symbol must contain it
+    max_dev_pct REAL,                      -- launch only: skip when the creator bought more than this % of supply
+    safety INTEGER NOT NULL DEFAULT 1,
+    active INTEGER NOT NULL DEFAULT 1,
+    created_at INTEGER NOT NULL,
+    updated_at INTEGER NOT NULL
+  );
+  CREATE INDEX pump_rules_active ON pump_rules (active);
+  CREATE TABLE pump_buys (
+    rule_id INTEGER NOT NULL,
+    user_id INTEGER NOT NULL,
+    mint TEXT NOT NULL,
+    symbol TEXT,
+    status TEXT NOT NULL,                  -- pending | bought | skipped | failed
+    signature TEXT,
+    error TEXT,
+    at INTEGER NOT NULL,
+    PRIMARY KEY (rule_id, mint)
+  );
+  CREATE INDEX pump_buys_user ON pump_buys (user_id, at);
+  ALTER TABLE snipes ADD COLUMN trigger TEXT NOT NULL DEFAULT 'tradable'; -- tradable | migration
+  `,
+  // ApeX Pro: watchlist, wallet tracker, security PIN, and launch stats of Solana tokens (bundles, snipers)
+  `
+  CREATE TABLE watchlist (
+    user_id INTEGER NOT NULL,
+    chain TEXT NOT NULL,
+    token TEXT NOT NULL,
+    added_at INTEGER NOT NULL,
+    PRIMARY KEY (user_id, chain, token)
+  );
+  CREATE TABLE tracked_wallets (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    user_id INTEGER NOT NULL,
+    chain TEXT NOT NULL,
+    address TEXT NOT NULL,
+    label TEXT NOT NULL,
+    notify INTEGER NOT NULL DEFAULT 1,     -- message the user on every trade
+    cursor TEXT,                           -- Solana: last seen signature; EVM: last scanned block
+    created_at INTEGER NOT NULL,
+    UNIQUE (user_id, chain, address)
+  );
+  CREATE TABLE tracker_events (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    track_id INTEGER NOT NULL REFERENCES tracked_wallets(id) ON DELETE CASCADE,
+    side TEXT NOT NULL,
+    token TEXT NOT NULL,
+    token_amount TEXT,
+    decimals INTEGER,
+    native TEXT,                           -- native coin spent (buy) or received (sell), raw units
+    ref TEXT NOT NULL,                     -- signature / tx hash
+    at INTEGER NOT NULL
+  );
+  CREATE INDEX tracker_events_track ON tracker_events (track_id, at);
+  CREATE TABLE security_pins (
+    user_id INTEGER PRIMARY KEY,
+    pin_hash TEXT NOT NULL,                -- scrypt, hex
+    salt TEXT NOT NULL,
+    failed INTEGER NOT NULL DEFAULT 0,
+    locked_until INTEGER NOT NULL DEFAULT 0,
+    updated_at INTEGER NOT NULL
+  );
+  CREATE TABLE token_launch (
+    chain TEXT NOT NULL,
+    token TEXT NOT NULL,
+    status TEXT NOT NULL,                  -- ok | unknown (too old / too many transactions to reach the start)
+    first_slot INTEGER,
+    bundled_pct REAL,                      -- % of supply bought by wallets in the launch slot (dev included)
+    bundlers INTEGER,
+    snipers INTEGER,                       -- wallets that first bought in the next 3 slots
+    sniper_pct REAL,
+    computed_at INTEGER NOT NULL,
+    PRIMARY KEY (chain, token)
+  );
+  CREATE INDEX trades_user ON trades (user_id, at);
+  `,
 ];
 
 function migrate() {

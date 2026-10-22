@@ -2,21 +2,40 @@ const automation = require('../services/automationService');
 const markets = require('../services/markets');
 const safetyService = require('../services/safetyService');
 const walletService = require('../services/walletService');
+const pumpFeed = require('../services/pumpFeed');
+const pumpService = require('../services/pumpService');
 const { getChain, txLink } = require('../config/chains');
 const { toUnits, shortAddress } = require('../utils/format');
 const { attempt, MAX_ATTEMPTS, esc } = require('./common');
 const logger = require('../utils/logger');
 
-// Buys each waiting snipe as soon as its token exists and has a trading route (1% snipe fee)
+// Migration snipes: the pump.fun feed says when a token migrates; a route check every 30 s covers
+// events missed while the feed was down
+const STAGE_CHECK_MS = 30_000;
+const lastStageCheck = new Map(); // snipe id → time, or true once migrated
+
+async function migrated(snipe) {
+  const last = lastStageCheck.get(snipe.id);
+  if (last === true || pumpFeed.hasMigrated(snipe.token)) return true;
+  if (Date.now() - (last || 0) < STAGE_CHECK_MS) return false;
+  const stage = await pumpService.pumpStage(snipe.token).catch(() => 'none');
+  lastStageCheck.set(snipe.id, stage === 'migrated' || Date.now());
+  return stage === 'migrated';
+}
+
+// Buys each waiting snipe as soon as its token exists and has a trading route (1% snipe fee).
+// trigger 'migration' waits until the pump.fun token has left its bonding curve.
 async function run(notify) {
   for (const snipe of automation.waitingSnipes()) {
     const chain = getChain(snipe.chain);
     const title = `🎯 Snipe <code>${shortAddress(snipe.token, 6)}</code> • ⛓ ${chain.name}`;
     if (snipe.expires_at < Date.now()) {
       automation.updateSnipe(snipe.id, { status: 'expired' });
-      await notify(snipe.user_id, `⌛ ${title} expired: the token never became tradable.`);
+      const why = snipe.trigger === 'migration' ? 'the token didn’t migrate in time' : 'the token never became tradable';
+      await notify(snipe.user_id, `⌛ ${title} expired: ${why}.`);
       continue;
     }
+    if (snipe.trigger === 'migration' && !(await migrated(snipe))) continue;
     const wallet = walletService.getWallet(snipe.user_id, chain.kind);
     if (!wallet) continue;
     const svc = markets.serviceFor(chain);

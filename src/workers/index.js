@@ -3,7 +3,9 @@ const logger = require('../utils/logger');
 // Background jobs. Each runs on its own interval and never overlaps with itself.
 const JOBS = [
   { name: 'sniper', everyMs: 4_000, module: require('./sniper') },
+  { name: 'pump', everyMs: 2_000, module: require('./pump') },
   { name: 'copy', everyMs: 10_000, module: require('./copy') },
+  { name: 'tracker', everyMs: 15_000, module: require('./tracker') },
   { name: 'orders', everyMs: 15_000, module: require('./orders') },
   { name: 'antiRug', everyMs: 20_000, module: require('./antiRug') },
   { name: 'dca', everyMs: 30_000, module: require('./dca') },
@@ -27,7 +29,10 @@ function startWorkers(notify) {
     }, everyMs);
   });
   logger.info({ jobs: JOBS.map((j) => j.name) }, 'Workers started');
-  return () => timers.forEach(clearInterval);
+  return () => {
+    timers.forEach(clearInterval);
+    JOBS.forEach(({ module }) => module.stop?.());
+  };
 }
 
 module.exports = { startWorkers };

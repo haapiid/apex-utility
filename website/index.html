@@ -4,9 +4,9 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>ApeX Utility</title>
-<meta name="description" content="Trade any token on Solana, Ethereum, BSC, Base, HyperEVM, MegaETH and Robinhood Chain from Telegram. Paste an address, tap Buy. 0.5% per trade, 40% of fees back to $APEX holders.">
+<meta name="description" content="Trade any token on Solana, Ethereum, BSC, Base, HyperEVM, MegaETH and Robinhood Chain from Telegram or the ApeX Pro web app. Paste an address, tap Buy, or snipe pump.fun launches. 0.5% per trade, 40% of fees back to $APEX holders.">
 <meta property="og:title" content="ApeX Utility — Trade Smart. Stay Ahead.">
-<meta property="og:description" content="A multi-chain trading bot for Telegram. Paste, tap Buy, done.">
+<meta property="og:description" content="A multi-chain trading bot for Telegram, and ApeX Pro in your browser. Paste, tap Buy, done.">
 <meta property="og:image" content="img/mascot-hero.png">
 <meta name="theme-color" content="#F4F0E7">
 <link rel="icon" type="image/png" sizes="32x32" href="img/favicon-32.png">
@@ -29,6 +29,7 @@
   <nav aria-label="Main">
     <a href="#how">How it works</a>
     <a href="#features">Features</a>
+    <a href="#pro">ApeX Pro</a>
     <a href="#share">Revenue share</a>
     <a href="#fees">Fees</a>
     <a href="#faq">FAQ</a>
@@ -41,13 +42,13 @@
   <section class="hero">
     <div class="hero-copy">
       <h1 class="lines"><span class="line"><span style="--i:0">Trade smart.</span></span> <span class="line"><span style="--i:1">Stay ahead.</span></span></h1>
-      <p class="lede">Buy and sell any token from Telegram. Paste an address, tap Buy, and you’re in, with MEV protection, a safety scan and limit orders built in.</p>
+      <p class="lede">Buy and sell any token from Telegram or your browser. Paste an address, tap Buy, and you’re in, with MEV protection, a safety scan, limit orders and a pump.fun sniper built in.</p>
       <ul class="chains" aria-label="Supported chains">
         <li>Solana</li><li>Ethereum</li><li>BSC</li><li>Base</li><li>HyperEVM</li><li>MegaETH</li><li>Robinhood</li>
       </ul>
       <div class="hero-actions">
         <a class="btn btn-ink btn-lg" href="https://t.me/apex_utility_chain_bot">Open in Telegram</a>
-        <p class="fine">Free to start. 0.5% per trade, nothing else.</p>
+        <p class="fine">Free to start. 0.5% per trade, nothing else. Or use <a data-pro href="http://localhost:8080">ApeX Pro</a> in your browser.</p>
       </div>
     </div>
 
@@ -99,18 +100,61 @@ Fee 0.5% • Slippage 5% • via Jupiter
   <section class="commands" id="features">
     <div class="commands-intro">
       <h2 data-lines>Everything happens in the chat</h2>
-      <p>No website to connect, no extension to install. Every action has a button, and every button has a command if you prefer typing.</p>
+      <p>No extension to install. Every action has a button, and every button has a command if you prefer typing. Everything here also works in ApeX Pro.</p>
     </div>
     <dl class="cmd-list">
       <div><dt><code>/buy [chain] &lt;token&gt; &lt;amount&gt;</code></dt><dd>Buy with SOL, ETH, BNB or HYPE. Solana routes through Jupiter, EVM chains through KyberSwap, for the best price across every DEX.</dd></div>
       <div><dt><code>/positions</code></dt><dd>Every bag in one list with its value right now and your profit or loss.</dd></div>
       <div><dt><code>/orders</code></dt><dd>Limit buys, take profit and stop loss, and DCA plans that buy or sell on a schedule. They run while you sleep.</dd></div>
-      <div><dt><code>/snipe [chain] &lt;token&gt; &lt;amount&gt;</code></dt><dd>Buys the moment a token becomes tradable. Honeypots, high taxes and freeze authority are skipped unless you say otherwise.</dd></div>
+      <div><dt><code>/snipe [chain] &lt;token&gt; &lt;amount&gt;</code></dt><dd>Buys the moment a token becomes tradable, or the moment a pump.fun token migrates to PumpSwap. Honeypots, high taxes and freeze authority are skipped unless you say otherwise.</dd></div>
+      <div><dt><code>/pump</code></dt><dd>Auto-buy new pump.fun launches that match your filters (name, dev buy), or every token as it graduates. You set the amount and how many it may buy.</dd></div>
       <div><dt><code>/copy</code></dt><dd>Follow any wallet and mirror its buys and sells from your own.</dd></div>
       <div><dt><code>/wallet</code></dt><dd>Up to five Solana and five EVM wallets. Create, import, switch, export or remove them.</dd></div>
       <div><dt><code>/settings</code></dt><dd>Slippage, MEV protection, Jito tip, gas boost, anti-rug and your own buy and sell buttons.</dd></div>
       <div><dt><code>/rewards</code></dt><dd>Claim referral earnings, revenue share and cashback. ApeX pays the gas.</dd></div>
     </dl>
+  </section>
+
+  <!-- ApeX Pro: the web app, shown as its own screen (sample data, same look as the real page) -->
+  <section class="pro" id="pro">
+    <div class="pro-intro">
+      <h2 data-lines>Prefer a big screen? Use ApeX Pro</h2>
+      <p>The same account in your browser, no Telegram needed. Log in with Phantom, MetaMask, Google or the bot.</p>
+      <ul class="facts pro-facts">
+        <li>New pairs, trending tokens and pump.fun launches, live.</li>
+        <li>Candle chart, live trades and a safety scan on every token.</li>
+        <li>Market, limit and DCA orders from one trade box.</li>
+        <li>Positions, wallets and rewards match the bot.</li>
+      </ul>
+      <!-- Set this to ApeX Pro's public URL (WEB_PUBLIC_URL) before deploying; on localhost main.js points it at port 8080 -->
+      <a class="btn btn-ink btn-lg" data-pro href="http://localhost:8080">Open ApeX Pro</a>
+    </div>
+
+    <figure class="screen" aria-label="ApeX Pro, pump.fun sniper page">
+      <div class="screen-bar">
+        <span class="screen-logo">ApeX <b>Pro</b></span>
+        <span class="screen-tabs"><span>Discover</span><span>Trending</span><span class="on">pump.fun</span><span>Orders</span></span>
+      </div>
+      <div class="screen-body">
+        <div class="screen-panel">
+          <p class="screen-title">🚀 New launches <span class="screen-live">Live</span></p>
+          <ul class="screen-rows">
+            <li><span><b>$BSTAND</b> Banana Stand<small>8kQ2…Lpump · dev bought 1.2%</small></span><small>2s</small></li>
+            <li><span><b>$CATCAP</b> Cat With Cap<small>3vNx…Rpump · dev bought 0%</small></span><small>9s</small></li>
+            <li><span><b>$MOONJR</b> Moon Junior<small>F1aE…7pump · dev bought 4.8%</small></span><small>14s</small></li>
+            <li><span><b>$APESZN</b> Ape Season<small>9Tq4…Wpump · dev bought 0.6%</small></span><small>21s</small></li>
+          </ul>
+        </div>
+        <div class="screen-panel">
+          <p class="screen-title">Your rules</p>
+          <ul class="screen-rows">
+            <li><span><b>🚀 New launches</b><small>0.05 SOL each · 1/3 bought · name has “cat”</small></span><span class="screen-btn">Stop</span></li>
+            <li><span><b>🎓 Migrations</b><small>0.2 SOL each · 0/2 bought</small></span><span class="screen-btn">Stop</span></li>
+          </ul>
+        </div>
+      </div>
+      <figcaption>ApeX Pro’s pump.fun sniper. Sample data.</figcaption>
+    </figure>
   </section>
 
   <!-- Revenue share: a still trading chart; only the legend text arrives -->
@@ -168,7 +212,7 @@ Fee 0.5% • Slippage 5% • via Jupiter
         <thead><tr><th scope="col">What</th><th scope="col">Cost</th><th scope="col">Example on a 1 SOL buy</th></tr></thead>
         <tbody>
           <tr><th scope="row">Buy or sell</th><td data-label="Cost">0.5% of the trade</td><td data-label="On a 1 SOL buy">0.005 SOL</td></tr>
-          <tr><th scope="row">Snipe</th><td data-label="Cost">1% of the trade</td><td data-label="On a 1 SOL buy">0.01 SOL</td></tr>
+          <tr><th scope="row">Snipe, incl. pump.fun</th><td data-label="Cost">1% of the trade</td><td data-label="On a 1 SOL buy">0.01 SOL</td></tr>
           <tr><th scope="row">Limit, TP/SL, DCA, copy</th><td data-label="Cost">0.5% of the trade</td><td data-label="On a 1 SOL buy">0.005 SOL</td></tr>
           <tr><th scope="row">Network fee</th><td data-label="Cost">Paid to the chain</td><td data-label="On a 1 SOL buy">about 0.000005 SOL</td></tr>
           <tr><th scope="row">MEV protection</th><td data-label="Cost">Jito tip on Solana, you set it</td><td data-label="On a 1 SOL buy">0.0001 SOL by default</td></tr>
@@ -201,6 +245,10 @@ Fee 0.5% • Slippage 5% • via Jupiter
         <p>Any token with liquidity on Solana, Ethereum, BSC, Base, HyperEVM, MegaETH or Robinhood Chain. Paste its address: the bot finds the chain and checks a route exists. New launches work once they have a pool, or snipe them before.</p>
       </details>
       <details>
+        <summary>Do I need Telegram?</summary>
+        <p>No. ApeX Pro runs in your browser and you can log in with Phantom, MetaMask or Google. If you also use the bot, link the two and you get one account with the same wallets, orders and rewards.</p>
+      </details>
+      <details>
         <summary>Who holds my wallet?</summary>
         <p>The bot stores your wallets’ keys encrypted so it can sign the trades you confirm. You can export them at any time. Keep only your trading funds in them, not your savings.</p>
       </details>
@@ -231,7 +279,10 @@ Fee 0.5% • Slippage 5% • via Jupiter
 <footer class="foot">
   <p class="foot-name">ApeX Utility</p>
   <div class="foot-row">
-    <a class="btn btn-yellow btn-lg" href="https://t.me/apex_utility_chain_bot">Open @apex_utility_chain_bot</a>
+    <div class="foot-actions">
+      <a class="btn btn-yellow btn-lg" href="https://t.me/apex_utility_chain_bot">Open @apex_utility_chain_bot</a>
+      <a class="btn btn-line btn-lg" data-pro href="http://localhost:8080">Open ApeX Pro</a>
+    </div>
     <p class="fine">Trading crypto is risky. Nothing on this site is financial advice.</p>
   </div>
 </footer>

@@ -60,7 +60,7 @@ async function check(pos, notify) {
   if (dropPct < settings.antiRugDropPct) return;
 
   logger.warn({ user: pos.user_id, token: pos.token, dropPct }, 'Anti-rug triggered');
-  const outcome = await attempt(() => svc.executeSell(pos.user_id, pos.token, 100, { source: 'manual' }));
+  const outcome = await attempt(() => svc.executeSell(pos.user_id, pos.token, 100, { source: 'antirug' }));
   if (outcome.status === 'busy') return;
   if (outcome.status === 'ok') {
     last.delete(key);

@@ -25,7 +25,7 @@ const ADDRESS_PATTERN = '0x[0-9a-fA-F]{40}|[1-9A-HJ-NP-Za-km-z]{32,44}';
 const AT = `(?:([a-z]+):)?(${ADDRESS_PATTERN})`;
 
 // Fee and slippage for this user's trade on a chain
-const tradeOpts = (ctx, chain) => settingsService.tradeOptions(ctx.from.id, chain, 'manual');
+const tradeOpts = (ctx, chain, side = 'buy') => settingsService.tradeOptions(ctx.from.id, chain, 'manual', side);
 const feeLabel = (opts) => bpsToPercent(opts.feeBps);
 const slippageLabel = (opts) => bpsToPercent(opts.slippageBps);
 const fmtUnits = (raw, decimals) => formatNumber(fromUnits(raw, decimals), 6);
@@ -185,7 +185,7 @@ async function showSellQuote(ctx, chain, address, percent) {
   if (!wallet) return noWallet(ctx, chain);
   if (skipConfirm(ctx)) return runTrade(ctx, { side: 'sell', chain: chain.key, address, amount: percent });
   const svc = markets.serviceFor(chain);
-  const opts = tradeOpts(ctx, chain);
+  const opts = tradeOpts(ctx, chain, 'sell');
   try {
     const q = await svc.quoteSell(address, percent, wallet.address, opts);
     const sym = escapeHtml(q.token.symbol);

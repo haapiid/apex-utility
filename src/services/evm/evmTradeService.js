@@ -43,8 +43,8 @@ function createEvmTrader(chain) {
     ...opts,
   });
 
-  function requireSigner(userId) {
-    const active = walletService.getActiveEvmSigner(userId, provider);
+  function requireSigner(userId, walletId) {
+    const active = walletService.getActiveEvmSigner(userId, provider, walletId);
     if (!active) throw new UserError('You don’t have an EVM wallet yet. Open 🐒 Wallet to create or import one.');
     return active;
   }
@@ -260,11 +260,12 @@ function createEvmTrader(chain) {
     };
   }
 
-  async function executeBuy(userId, address, amount, { onSubmitted, source = 'manual' } = {}) {
+  async function executeBuy(userId, address, amount, { onSubmitted, source = 'manual', walletId } = {}) {
     return withUserLock(userId, async () => {
-      const { wallet, signer } = requireSigner(userId);
-      const opts = settingsService.tradeOptions(userId, chain, source);
+      const { wallet, signer } = requireSigner(userId, walletId);
+      const opts = settingsService.tradeOptions(userId, chain, source, 'buy');
       const quote = await quoteBuy(address, amount, signer.address, opts);
+      settingsService.checkImpact(quote, opts);
       const tx = await build(quote, signer.address);
       const { hash } = await sendTx(signer, tx, { onSubmitted, failMessage: SWAP_FAILED, opts });
 
@@ -291,7 +292,7 @@ function createEvmTrader(chain) {
         signature: hash,
       });
       logger.info({ userId, chain: chain.key, hash, token: quote.token.address, amount, source, mev: opts.mevProtect }, 'Buy confirmed');
-      return { signature: hash, quote };
+      return { signature: hash, quote, wallet: { id: wallet.id, label: wallet.label } };
     });
   }
 
@@ -332,12 +333,13 @@ function createEvmTrader(chain) {
     };
   }
 
-  async function executeSell(userId, address, percent, { onSubmitted, onApproving, source = 'manual', amountRaw } = {}) {
+  async function executeSell(userId, address, percent, { onSubmitted, onApproving, source = 'manual', amountRaw, walletId } = {}) {
     return withUserLock(userId, async () => {
-      const { wallet, signer } = requireSigner(userId);
+      const { wallet, signer } = requireSigner(userId, walletId);
       const owner = signer.address;
-      const opts = { ...settingsService.tradeOptions(userId, chain, source), amountRaw };
+      const opts = { ...settingsService.tradeOptions(userId, chain, source, 'sell'), amountRaw };
       let quote = await quoteSell(address, percent, owner, opts);
+      settingsService.checkImpact(quote, opts);
       // Routes go stale quickly: fetch a fresh one if we had to wait for an approval first
       if (await ensureAllowance(signer, quote.token, quote.routerAddress, quote.amountIn, opts, onApproving)) {
         quote = await quoteSell(address, percent, owner, opts);
@@ -373,7 +375,7 @@ function createEvmTrader(chain) {
         signature: hash,
       });
       logger.info({ userId, chain: chain.key, hash, token: quote.token.address, percent, source, mev: opts.mevProtect }, 'Sell confirmed');
-      return { signature: hash, quote, received };
+      return { signature: hash, quote, received, wallet: { id: wallet.id, label: wallet.label } };
     });
   }
 

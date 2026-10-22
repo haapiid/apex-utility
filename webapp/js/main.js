@@ -1,10 +1,13 @@
-import { h, $, api, state, setChain, on, emit, chainInfo, loggedIn, fmtCompact, fmtPrice, native, short, avatar, toast, errorToast, plainText, ago } from './lib.js';
+import { h, $, api, state, setChain, on, emit, chainInfo, loggedIn, fmtCompact, fmtPrice, pct, native, short, avatar, toast, errorToast, plainText, ago } from './lib.js';
 import { signInWithWallet, telegramLogin, googleUrl } from './auth.js';
 import discover from './views/discover.js';
 import trending from './views/trending.js';
 import token from './views/token.js';
 import positions from './views/positions.js';
 import orders from './views/orders.js';
+import pump from './views/pump.js';
+import watchlist from './views/watchlist.js';
+import tracker from './views/tracker.js';
 import rewards from './views/rewards.js';
 import wallets from './views/wallets.js';
 import settings from './views/settings.js';
@@ -17,6 +20,9 @@ const ROUTES = [
   [/^\/token\/([a-z]+)\/([A-Za-z0-9]+)$/, null, token],
   [/^\/positions$/, 'positions', positions],
   [/^\/orders$/, 'orders', orders],
+  [/^\/pump$/, 'pump', pump],
+  [/^\/watchlist$/, 'watchlist', watchlist],
+  [/^\/tracker$/, 'tracker', tracker],
   [/^\/rewards$/, 'rewards', rewards],
   [/^\/wallets$/, null, wallets],
   [/^\/settings$/, null, settings],
@@ -86,6 +92,21 @@ async function toggleNotifications(e) {
     state.me.unread = 0;
     renderAccount();
   }
+}
+
+// ---------- trending ticker ----------
+
+let tickerSeq = 0;
+async function loadTicker() {
+  const box = $('#ticker');
+  const mine = ++tickerSeq;
+  const rows = await api(`/api/market/ticker?chain=${state.chain}`).catch(() => null);
+  if (mine !== tickerSeq || !rows) return;
+  if (!rows.length) return box.replaceChildren();
+  const item = (t) =>
+    h('a', { class: 'tick', href: `#/token/${t.chain}/${t.token.address}` }, avatar(t.token), h('b', {}, t.token.symbol || short(t.token.address)), h('span', { class: 'mono' }, fmtPrice(t.priceUsd)), pct(t.change1h));
+  // Two copies of the list scroll as one seamless loop; the copy is hidden from screen readers
+  box.replaceChildren(h('div', { class: 'ticker-track' }, h('div', { class: 'ticker-group' }, rows.map(item)), h('div', { class: 'ticker-group', 'aria-hidden': 'true' }, rows.map(item))));
 }
 
 // ---------- search ----------
@@ -208,7 +229,9 @@ async function boot() {
   loadBalances();
   setInterval(loadBalances, 30_000);
   setInterval(() => loggedIn() && api('/api/me').then((me) => ((state.me.unread = me.unread), renderAccount())).catch(() => {}), 45_000);
-  on((event) => event === 'chain' && (renderAccount(), route()));
+  loadTicker();
+  setInterval(loadTicker, 60_000);
+  on((event) => event === 'chain' && (renderAccount(), loadTicker(), route()));
   window.addEventListener('hashchange', route);
   route();
 }

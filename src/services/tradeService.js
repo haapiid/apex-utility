@@ -30,8 +30,8 @@ const RENT_EXEMPT_MIN = 890_880n;
 // SOL kept aside on buys for network fees + creating the token account (rent)
 const BUY_RESERVE_LAMPORTS = 5_000_000n; // 0.005 SOL
 
-function requireKeypair(userId) {
-  const active = walletService.getActiveKeypair(userId);
+function requireKeypair(userId, walletId) {
+  const active = walletService.getActiveKeypair(userId, walletId);
   if (!active) throw new UserError('You don’t have a Solana wallet yet. Open 🐒 Wallet to create or import one.');
   return active;
 }
@@ -284,11 +284,12 @@ async function quoteBuy(mint, solAmount, owner, options = {}) {
   };
 }
 
-async function executeBuy(userId, mint, solAmount, { onSubmitted, source = 'manual' } = {}) {
+async function executeBuy(userId, mint, solAmount, { onSubmitted, source = 'manual', walletId } = {}) {
   return withUserLock(userId, async () => {
-    const { wallet, keypair } = requireKeypair(userId);
-    const opts = settingsService.tradeOptions(userId, chain, source);
+    const { wallet, keypair } = requireKeypair(userId, walletId);
+    const opts = settingsService.tradeOptions(userId, chain, source, 'buy');
     const quote = await quoteBuy(mint, solAmount, wallet.address, opts);
+    settingsService.checkImpact(quote, opts);
 
     const balance = await walletService.getBalance(wallet.address);
     if (balance < quote.amountIn + BUY_RESERVE_LAMPORTS + landingCost(opts)) {
@@ -324,7 +325,7 @@ async function executeBuy(userId, mint, solAmount, { onSubmitted, source = 'manu
     });
     await recordFee(userId, feeCharged, signature);
     logger.info({ userId, signature, mint, sol: solAmount, source, mev: opts.mevProtect }, 'Buy confirmed');
-    return { signature, quote };
+    return { signature, quote, wallet: { id: wallet.id, label: wallet.label } };
   });
 }
 
@@ -365,11 +366,12 @@ async function quoteSell(mint, percent, owner, options = {}) {
   };
 }
 
-async function executeSell(userId, mint, percent, { onSubmitted, source = 'manual', amountRaw } = {}) {
+async function executeSell(userId, mint, percent, { onSubmitted, source = 'manual', amountRaw, walletId } = {}) {
   return withUserLock(userId, async () => {
-    const { wallet, keypair } = requireKeypair(userId);
-    const opts = { ...settingsService.tradeOptions(userId, chain, source), amountRaw };
+    const { wallet, keypair } = requireKeypair(userId, walletId);
+    const opts = { ...settingsService.tradeOptions(userId, chain, source, 'sell'), amountRaw };
     const quote = await quoteSell(mint, percent, wallet.address, opts);
+    settingsService.checkImpact(quote, opts);
 
     const before = await walletService.getBalance(wallet.address);
     const signature = await sendSwap(keypair, quote, opts, onSubmitted);
@@ -408,7 +410,7 @@ async function executeSell(userId, mint, percent, { onSubmitted, source = 'manua
     });
     await recordFee(userId, feeCharged, signature);
     logger.info({ userId, signature, mint, percent, source, mev: opts.mevProtect }, 'Sell confirmed');
-    return { signature, quote, received };
+    return { signature, quote, received, wallet: { id: wallet.id, label: wallet.label } };
   });
 }
 

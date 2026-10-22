@@ -1,11 +1,13 @@
-import { h, api, state, chainInfo, loggedIn, fromUnits, fmtNum, fmtCompact, fmtPrice, pct, ago, short, avatar, copyButton, panel, empty, native, errorToast } from '../lib.js';
+import { h, api, state, chainInfo, loggedIn, fromUnits, fmtNum, fmtCompact, fmtPrice, pct, ago, short, avatar, copyButton, panel, empty, native, toast, errorToast, metricChips, explorerAddress } from '../lib.js';
+import { bubbleMap } from '../bubbleMap.js';
+import { historyTable } from '../history.js';
 import { createPriceChart } from '../chart.js';
 import { tradePanel } from '../tradePanel.js';
 
 const CHANGE_LABELS = { m5: '5m', h1: '1h', h6: '6h', h24: '24h' };
 
 // Token page: header stats, chart, trades / position / orders tabs, and the trade box
-export default function token(container, [chainKey, address]) {
+export default function token(container, [chainKey, address], query) {
   const chain = chainInfo(chainKey);
   if (!chain) {
     container.append(empty('Unknown chain.'));
@@ -14,7 +16,10 @@ export default function token(container, [chainKey, address]) {
   let alive = true;
   let data = null;
   let tf = localStorage.getItem('apex.tf') || '15m';
-  let tab = 'trades';
+  // ?tab=holders etc. opens a tab directly (shareable links)
+  let tab = ['trades', 'traders', 'holders', 'bubbles'].includes(query?.get('tab')) ? query.get('tab') : 'trades';
+  let metrics = null;
+  let watched = false;
   const timers = [];
 
   const head = h('section', { class: 'panel' }, h('div', { class: 'token-head' }, h('div', { class: 'skeleton grow' })));
@@ -51,7 +56,14 @@ export default function token(container, [chainKey, address]) {
         h(
           'div',
           { class: 'token-title' },
-          h('h1', {}, info.symbol, h('small', {}, info.name), h('span', { class: 'chip' }, chain.name)),
+          h(
+            'h1',
+            {},
+            info.symbol,
+            h('small', {}, info.name),
+            h('span', { class: 'chip' }, chain.name),
+            h('button', { class: `star${watched ? ' on' : ''}`, type: 'button', title: watched ? 'Remove from watchlist' : 'Add to watchlist', 'aria-pressed': String(watched), onclick: toggleWatch }, watched ? '★' : '☆'),
+          ),
           h(
             'div',
             { class: 'addr' },
@@ -71,8 +83,38 @@ export default function token(container, [chainKey, address]) {
           ...Object.entries(CHANGE_LABELS).map(([k, label]) => h('div', { class: 'kpi' }, h('span', {}, label), h('b', {}, pct(ov?.change?.[k])))),
         ),
       ),
-      chips.length ? h('div', { class: 'panel-body chips flush-top' }, chips) : null,
+      // '' not null: replaceChildren() prints null as text
+      metrics ? h('div', { class: 'panel-body metrics flush-top' }, metricChips(metrics)) : '',
+      chips.length ? h('div', { class: 'panel-body chips flush-top' }, chips) : '',
     );
+  }
+
+  async function toggleWatch() {
+    if (!loggedIn()) return document.dispatchEvent(new Event('apex:login'));
+    try {
+      await api('/api/watchlist', { method: 'POST', body: { chain: chain.key, token: address, remove: watched } });
+      watched = !watched;
+      toast(watched ? 'Added to your watchlist ★' : 'Removed from your watchlist');
+      renderHead();
+    } catch (err) {
+      errorToast(err);
+    }
+  }
+
+  async function loadMetrics() {
+    try {
+      metrics = await api(`/api/token/${chain.key}/${address}/metrics`);
+      if (alive && data) renderHead();
+    } catch {
+      /* metrics are optional */
+    }
+  }
+
+  async function loadWatched() {
+    if (!loggedIn()) return;
+    const list = await api('/api/watchlist').catch(() => []);
+    watched = list.some((w) => w.chain === chain.key && w.token.toLowerCase() === address.toLowerCase());
+    if (alive && data) renderHead();
   }
 
   // ---------- chart ----------
@@ -110,14 +152,107 @@ export default function token(container, [chainKey, address]) {
 
   // ---------- lower tabs ----------
   function renderTabs() {
-    const tabs = [['trades', 'Trades'], ...(loggedIn() ? [['position', 'My position'], ['orders', 'Orders']] : [])];
+    const tabs = [
+      ['trades', 'Trades'],
+      ['traders', 'Top traders'],
+      ['holders', 'Holders'],
+      ['bubbles', 'Bubble map'],
+      ...(loggedIn() ? [['position', 'My position'], ['mine', 'My trades'], ['orders', 'Orders']] : []),
+    ];
     tabHead.replaceChildren(...tabs.map(([k, label]) => h('button', { type: 'button', class: k === tab ? 'active' : '', onclick: () => ((tab = k), renderTabs(), loadTab()) }, label)));
   }
 
   async function loadTab() {
     if (tab === 'trades') return loadTrades();
+    if (tab === 'traders') return loadTraders();
+    if (tab === 'holders' || tab === 'bubbles') return loadHolders();
     if (tab === 'position') return loadPosition();
+    if (tab === 'mine') return loadMine();
     return loadOrders();
+  }
+
+  const usd = (v) => `${v < 0 ? '-' : ''}$${fmtNum(Math.abs(v), 2)}`;
+  const walletLink = (a) => h('a', { href: explorerAddress(chain.key, a), target: '_blank', rel: 'noopener', class: 'mono muted' }, short(a));
+
+  async function loadTraders() {
+    if (!data?.overview?.pool) return tabBody.replaceChildren(empty('No pool data for this token yet.'));
+    tabBody.replaceChildren(h('div', { class: 'skeleton spaced' }));
+    try {
+      const res = await api(`/api/token/${chain.key}/${address}/traders?pool=${data.overview.pool}`);
+      if (!alive || tab !== 'traders') return;
+      if (!res.rows.length) return tabBody.replaceChildren(empty('No trades yet.'));
+      tabBody.replaceChildren(
+        h(
+          'table',
+          {},
+          h('thead', {}, h('tr', {}, h('th', {}, '#'), h('th', {}, 'Wallet'), h('th', { class: 'num' }, 'Bought'), h('th', { class: 'num' }, 'Sold'), h('th', { class: 'num' }, 'PnL'), h('th', { class: 'num' }, 'Txns'))),
+          h(
+            'tbody',
+            {},
+            res.rows.map((r, i) =>
+              h(
+                'tr',
+                {},
+                h('td', { class: 'muted' }, i + 1),
+                h('td', {}, walletLink(r.maker)),
+                h('td', { class: 'num' }, usd(r.boughtUsd)),
+                h('td', { class: 'num' }, usd(r.soldUsd)),
+                h('td', { class: `num ${r.pnlUsd >= 0 ? 'up' : 'down'}` }, usd(r.pnlUsd)),
+                h('td', { class: 'num muted' }, `${r.buys} / ${r.sells}`),
+              ),
+            ),
+          ),
+        ),
+        h('p', { class: 'fine panel-body' }, `Realized PnL (sold − bought) over the last ${res.window} trades${res.since ? `, since ${ago(res.since)} ago` : ''}. Tokens still held aren't counted.`),
+      );
+    } catch {
+      if (alive && tab === 'traders') tabBody.replaceChildren(empty('Top traders are loading, market data is busy.'));
+    }
+  }
+
+  let holderData = null;
+  async function loadHolders() {
+    if (!holderData) tabBody.replaceChildren(h('div', { class: 'skeleton spaced' }));
+    try {
+      holderData = holderData || (await api(`/api/token/${chain.key}/${address}/holders`));
+      if (!alive || (tab !== 'holders' && tab !== 'bubbles')) return;
+      if (tab === 'bubbles') return tabBody.replaceChildren(bubbleMap(chain.key, holderData));
+      if (!holderData.list.length) return tabBody.replaceChildren(empty('No holder data for this token.'));
+      tabBody.replaceChildren(
+        h(
+          'table',
+          {},
+          h('thead', {}, h('tr', {}, h('th', {}, '#'), h('th', {}, 'Wallet'), h('th', { class: 'num' }, 'Share'), h('th', {}, 'Tags'))),
+          h(
+            'tbody',
+            {},
+            holderData.list.slice(0, 50).map((x, i) =>
+              h(
+                'tr',
+                {},
+                h('td', { class: 'muted' }, i + 1),
+                h('td', {}, walletLink(x.address), ' ', copyButton(x.address, 'Copy address')),
+                h('td', { class: 'num' }, `${fmtNum(x.pct, 2)}%`),
+                h('td', {}, x.tags.map((t) => h('span', { class: `chip${t === 'dev' ? ' bad' : ''}` }, t))),
+              ),
+            ),
+          ),
+        ),
+        h('p', { class: 'fine panel-body' }, `${holderData.count != null ? `${fmtNum(holderData.count, 0)} holders · ` : ''}${holderData.source}`),
+      );
+    } catch (err) {
+      if (alive) tabBody.replaceChildren(empty(err.message));
+    }
+  }
+
+  async function loadMine() {
+    try {
+      const res = await api(`/api/history?token=${encodeURIComponent(address)}&chain=${chain.key}&limit=50`);
+      if (!alive || tab !== 'mine') return;
+      tabBody.replaceChildren(res.rows.length ? historyTable(res.rows) : empty('You haven’t traded this token with ApeX yet.'));
+    } catch (err) {
+      errorToast(err);
+    }
   }
 
   async function loadTrades() {
@@ -220,6 +355,8 @@ export default function token(container, [chainKey, address]) {
         renderTabs();
         loadCandles();
         loadTab();
+        loadMetrics();
+        loadWatched();
       }
     } catch (err) {
       if (first) head.replaceChildren(h('div', { class: 'panel-body' }, h('p', { class: 'form-error' }, err.message)));
@@ -234,7 +371,7 @@ export default function token(container, [chainKey, address]) {
   }
 
   loadToken(true);
-  timers.push(setInterval(() => loadToken(), 20_000), setInterval(() => tab === 'trades' && loadTrades(), 20_000), setInterval(loadCandles, 60_000));
+  timers.push(setInterval(loadMetrics, 60_000), setInterval(() => loadToken(), 20_000), setInterval(() => tab === 'trades' && loadTrades(), 20_000), setInterval(loadCandles, 60_000));
   return () => {
     alive = false;
     timers.forEach(clearInterval);

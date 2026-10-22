@@ -40,6 +40,10 @@ const config = {
     url: (process.env.JITO_URL || 'https://mainnet.block-engine.jito.wtf').replace(/\/$/, ''),
     tipLamports: int('JITO_TIP_LAMPORTS', 100_000), // 0.0001 SOL default, users can change it
   },
+  pump: {
+    // PumpPortal's free data feed: new pump.fun tokens and migrations (only connected while someone needs it)
+    feedUrl: process.env.PUMP_FEED_URL || 'wss://pumpportal.fun/api/data',
+  },
   db: {
     path: process.env.DB_PATH || path.join(dataDir, 'apex.db'),
   },
@@ -114,7 +118,7 @@ const config = {
 config.revenue.feesEnabled = Boolean(config.revenue.treasury);
 config.evm.feesEnabled = Boolean(config.evm.treasury);
 
-const FEE_BPS_BY_SOURCE = { manual: 'manualBps', snipe: 'snipeBps', limit: 'autoBps', dca: 'autoBps', copy: 'autoBps' };
+const FEE_BPS_BY_SOURCE = { manual: 'manualBps', snipe: 'snipeBps', limit: 'autoBps', dca: 'autoBps', copy: 'autoBps', antirug: 'manualBps' };
 
 // Fee in bps for a trade on a chain kind ('sol' | 'evm') from a source (manual, snipe, limit, dca, copy)
 function feeBpsFor(kind, source = 'manual') {

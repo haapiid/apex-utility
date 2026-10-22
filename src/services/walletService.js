@@ -137,17 +137,17 @@ function removeWallet(userId, walletId) {
   return true;
 }
 
-// Active Solana wallet with its keypair, for signing
-function getActiveKeypair(userId) {
-  const wallet = getWallet(userId, 'sol');
-  if (!wallet) return null;
+// Solana wallet with its keypair, for signing: the active one, or a given wallet id (multi-wallet trades)
+function getActiveKeypair(userId, walletId) {
+  const wallet = walletId != null ? getWalletById(userId, walletId) : getWallet(userId, 'sol');
+  if (!wallet || wallet.kind !== 'sol') return null;
   return { wallet, keypair: Keypair.fromSecretKey(bs58.decode(exportPrivateKey(userId, wallet.id))) };
 }
 
-// Active EVM wallet with a signer connected to a chain's provider
-function getActiveEvmSigner(userId, provider) {
-  const wallet = getWallet(userId, 'evm');
-  if (!wallet) return null;
+// EVM wallet with a signer connected to a chain's provider: the active one, or a given wallet id
+function getActiveEvmSigner(userId, provider, walletId) {
+  const wallet = walletId != null ? getWalletById(userId, walletId) : getWallet(userId, 'evm');
+  if (!wallet || wallet.kind !== 'evm') return null;
   return { wallet, signer: new Wallet(exportPrivateKey(userId, wallet.id), provider) };
 }
 

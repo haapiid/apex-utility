@@ -52,6 +52,15 @@ function setupCalculator(gsap) {
   update();
 }
 
+// ---------------------------------------------------------------- ApeX Pro links
+// On localhost / the LAN, ApeX Pro runs next to this site on port 8080; elsewhere the HTML's href is used
+function proLinks() {
+  const host = location.hostname;
+  const local = host === 'localhost' || host === '127.0.0.1' || /^(10|192\.168|172\.(1[6-9]|2\d|3[01]))\./.test(host);
+  if (!local) return;
+  $$('[data-pro]').forEach((a) => { a.href = `http://${host}:8080/`; });
+}
+
 // ---------------------------------------------------------------- hero replay
 const SCREENS = {
   card: $('#demo-text')?.innerHTML,
@@ -178,6 +187,7 @@ function rows(gsap, ScrollTrigger, selector, from) {
 // ---------------------------------------------------------------- boot
 function boot() {
   const { gsap, ScrollTrigger } = window;
+  proLinks();
   setupCalculator(gsap);
   if (!gsap || !ScrollTrigger) return; // static page is complete without the libraries
   gsap.registerPlugin(ScrollTrigger);

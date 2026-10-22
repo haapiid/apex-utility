@@ -97,7 +97,8 @@ function ordersText(userId) {
   lines.push('', `<b>Snipes</b> (${snipes.length})`);
   snipes.forEach((s, i) => {
     const chain = getChain(s.chain);
-    lines.push(`${i + 1}. 🎯 <code>${shortAddress(s.token, 6)}</code> (${chain.name}): ${escapeHtml(s.amount)} ${chain.native}, waiting ${ago(s.created_at)}`);
+    const what = s.trigger === 'migration' ? 'waiting for migration' : 'waiting';
+    lines.push(`${i + 1}. 🎯 <code>${shortAddress(s.token, 6)}</code> (${chain.name}): ${escapeHtml(s.amount)} ${chain.native}, ${what} ${ago(s.created_at)}`);
     items.push({ label: `Snipe ${i + 1}`, cancel: `sx:${s.id}` });
   });
   if (!snipes.length) lines.push('<i>None. See 🎯 Sniper.</i>');
@@ -123,6 +124,9 @@ const sniperHelp = () =>
     'Examples:',
     '<code>/snipe &lt;solana mint&gt; 0.5</code>',
     '<code>/snipe base 0x… 0.02</code> (chain needed for EVM tokens)',
+    '<code>/snipe &lt;pump.fun mint&gt; 0.5 migration</code> buys when it migrates to PumpSwap',
+    '',
+    '💊 Snipe every new pump.fun launch or migration instead: /pump',
     '',
     `🛡️ Safety filter on by default: honeypots, high taxes and freeze authority are skipped. Add <code>unsafe</code> at the end to turn it off.`,
     `Fee ${bpsToPercent(config.fees.snipeBps)} • Snipes expire after 24 hours • Your MEV and slippage settings apply.`,
@@ -134,8 +138,16 @@ async function handleSnipe(ctx) {
   if (!args.length) return respond(ctx, sniperHelp(), backOnly());
   let chain = findChain(args[0]);
   if (chain) args.shift();
-  const unsafe = args.at(-1)?.toLowerCase() === 'unsafe';
-  if (unsafe) args.pop();
+  // Trailing flags, in any order: "unsafe", "migration"
+  let unsafe = false;
+  let trigger = 'tradable';
+  while (args.length > 2) {
+    const flag = args.at(-1).toLowerCase();
+    if (flag === 'unsafe') unsafe = true;
+    else if (flag === 'migration' || flag === 'migrate') trigger = 'migration';
+    else break;
+    args.pop();
+  }
   const [address, amount] = args;
   if (!address || !amount) return respond(ctx, sniperHelp(), backOnly());
   if (!chain) {
@@ -145,11 +157,12 @@ async function handleSnipe(ctx) {
   }
   if (!chain.tradable) return respond(ctx, `⏳ ${chain.name} is coming soon.`, backOnly());
   try {
-    const snipe = automation.createSnipe(ctx.from.id, chain, address, amount, !unsafe);
+    const snipe = await automation.createSnipe(ctx.from.id, chain, address, amount, !unsafe, trigger);
+    const when = snipe.trigger === 'migration' ? 'the moment it migrates from pump.fun to PumpSwap (valid 7 days)' : 'as soon as it’s tradable';
     return respond(
       ctx,
       `🎯 <b>Snipe armed</b> • ⛓ ${chain.name}\n\n<code>${escapeHtml(snipe.token)}</code>\n` +
-        `Buys for <b>${escapeHtml(snipe.amount)} ${chain.native}</b> as soon as it’s tradable. Safety filter: ${snipe.safety ? 'ON' : 'OFF'}.\n` +
+        `Buys for <b>${escapeHtml(snipe.amount)} ${chain.native}</b> ${when}. Safety filter: ${snipe.safety ? 'ON' : 'OFF'}.\n` +
         'You’ll get a message when it fires. Manage it in 🤖 Orders.',
       backOnly('menu:orders'),
     );

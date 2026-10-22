@@ -174,3 +174,64 @@ export function loginRequired(container, what = 'this') {
     ),
   );
 }
+
+// SVG elements (bubble map). Same rule as h(): attributes and text only, never markup.
+export function svg(tag, attrs = {}, ...children) {
+  const el = document.createElementNS('http://www.w3.org/2000/svg', tag);
+  for (const [key, value] of Object.entries(attrs)) {
+    if (value == null || value === false) continue;
+    if (key.startsWith('on') && typeof value === 'function') el.addEventListener(key.slice(2).toLowerCase(), value);
+    else el.setAttribute(key, value);
+  }
+  for (const child of children.flat(Infinity)) {
+    if (child == null || child === false) continue;
+    el.append(child instanceof Node ? child : String(child));
+  }
+  return el;
+}
+
+export const explorerAddress = (chainKey, address) => `${chainInfo(chainKey)?.explorer || ''}${address}`;
+
+// Asks for the security PIN when the account has one: resolves to the PIN, '' without a PIN, or null if cancelled
+export function askPin(reason = 'Enter your security PIN') {
+  if (!state.me?.hasPin) return Promise.resolve('');
+  return new Promise((resolve) => {
+    const input = h('input', { class: 'input mono pin-input', type: 'password', inputmode: 'numeric', autocomplete: 'off', maxlength: '8', 'aria-label': 'Security PIN' });
+    const dialog = h(
+      'dialog',
+      { class: 'modal' },
+      h(
+        'form',
+        // method=dialog closes with the submit button's value as returnValue
+        { method: 'dialog', class: 'stack' },
+        h('h2', {}, '🔒 Security PIN'),
+        h('p', {}, reason),
+        input,
+        h('div', { class: 'row' }, h('button', { class: 'btn btn-yellow grow', type: 'submit', value: 'ok' }, 'Continue'), h('button', { class: 'btn btn-ghost', type: 'button', onclick: () => dialog.close('cancel') }, 'Cancel')),
+      ),
+    );
+    dialog.addEventListener('close', () => {
+      resolve(dialog.returnValue === 'ok' ? input.value.trim() : null);
+      dialog.remove();
+    });
+    document.body.append(dialog);
+    dialog.showModal();
+    input.focus();
+  });
+}
+
+// Holders · top 10 · dev · bundled · snipers, flagged when they look risky
+const RISK = { top10Pct: 30, devPct: 5, bundledPct: 20, sniperPct: 10 };
+const pctText = (v) => (v == null ? '–' : `${fmtNum(v, v < 1 ? 2 : 1)}%`);
+export function metricChips(m, { compact = false } = {}) {
+  if (!m) return [];
+  // Full: "Top 10 78.3%" with a label; compact: "T10 78.3%"
+  const chip = (label, tag, value, title, risky) => h('span', { class: `metric${risky ? ' risky' : ''}`, title }, h('i', {}, compact ? tag : label), value);
+  return [
+    chip('Holders', '👥', m.holders == null ? '–' : fmtCompact(m.holders, ''), 'Holders'),
+    chip('Top 10', 'T10', pctText(m.top10Pct), 'Share held by the 10 biggest holders (pools excluded)', m.top10Pct > RISK.top10Pct),
+    chip('Dev', 'DEV', pctText(m.devPct), 'Share the creator still holds', m.devPct > RISK.devPct),
+    chip('Bundled', 'BND', pctText(m.bundledPct), 'Bought by wallets in the launch block, dev included (Solana)', m.bundledPct > RISK.bundledPct),
+    chip('Snipers', '🎯', m.snipers == null ? '–' : m.snipers, `Wallets that bought in the first ~3 blocks${m.sniperPct != null ? `: ${pctText(m.sniperPct)} of supply` : ''} (Solana)`, m.sniperPct > RISK.sniperPct),
+  ];
+}
