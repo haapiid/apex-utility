@@ -222,10 +222,20 @@ folder** so they load; approve the two project MCP servers the first time.
 - Sections are **compact** (owner request): `--section` / `--stack` tokens in `styles.css`, smaller h2,
   tight lists, table rows and FAQ. Keep new sections on the same tokens.
 - Footer has **no mascot image**: just the "ApeX Utility" name, the bot button and the disclaimer.
+- Legal (2026-10-23): `website/terms.html` + `privacy.html` (same header/footer, sticky table of contents),
+  linked from every footer's bottom row. Contact `support@apexutility.fun`, governing law Indonesia — owner
+  to confirm both. Update the privacy page when ApeX starts storing new personal data or adds a provider.
+- Header is sticky (hairline once scrolled, current section underlined); below 1020px the section links
+  move into a `<details class="menu">` button. Content stops widening at 1360px (`--gutter`).
 - Mascot: the master bust stands on the hero's bottom edge (flat-cut hoodie) left of the bot phone, its
   banana hand reaching over the phone's left edge. Below 700px it peeks over the phone's top instead.
   No other mascot images on the page (the owner removed the Features, Revenue and footer poses).
-- Hero must stay **compact**.
+- Hero must stay **compact** (2026-10-23: h1 max 4.5rem, chat fixed at 340px with older messages fading
+  out of its top, hero stacks below 1020px, mascot 180px on phones).
+- "Why ApeX" (2026-10-23, dark section right after the hero): six claims, each with the mechanism that proves
+  it; only claims that are live in the code. Scroll transitions: gold reading-progress line under the bar,
+  dark sections (`.edge`, `.share`) open from an inset rounded panel to full bleed, claims light up as
+  they pass the middle of the screen. All inside the reduced-motion `matchMedia` block.
 - "ApeX Pro" section (2026-10-22, after Features): text + a dark HTML "screen" of ApeX Pro's pump.fun page
   (sample data, no images). Every ApeX Pro link has `data-pro`; on localhost/LAN `main.js` points them at
   port 8080, elsewhere the HTML `href` is used: `https://pro.apexutility.fun`.

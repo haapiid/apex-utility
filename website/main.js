@@ -61,6 +61,31 @@ function proLinks() {
   $$('[data-pro]').forEach((a) => { a.href = `http://${host}:8080/`; });
 }
 
+// ---------------------------------------------------------------- sticky bar
+// Hairline once the page scrolls, the menu closes after a pick, and the section in view is marked
+function bar() {
+  const el = $('.bar');
+  if (!el) return;
+  const onScroll = () => el.classList.toggle('scrolled', window.scrollY > 8);
+  window.addEventListener('scroll', onScroll, { passive: true });
+  onScroll();
+
+  const menu = $('.menu');
+  menu?.addEventListener('click', (e) => { if (e.target.closest('a')) menu.open = false; });
+  document.addEventListener('keydown', (e) => { if (e.key === 'Escape' && menu?.open) menu.open = false; });
+
+  const links = new Map($$('.bar > nav a[href^="#"]').map((a) => [a.getAttribute('href').slice(1), a]));
+  if (!links.size || !('IntersectionObserver' in window)) return;
+  const io = new IntersectionObserver((entries) => {
+    for (const e of entries) {
+      if (!e.isIntersecting) continue;
+      links.forEach((a) => a.removeAttribute('aria-current'));
+      links.get(e.target.id)?.setAttribute('aria-current', 'true');
+    }
+  }, { rootMargin: '-45% 0px -50% 0px' });
+  links.forEach((_, id) => { const s = document.getElementById(id); if (s) io.observe(s); });
+}
+
 // ---------------------------------------------------------------- hero replay
 const SCREENS = {
   card: $('#demo-text')?.innerHTML,
@@ -188,6 +213,7 @@ function rows(gsap, ScrollTrigger, selector, from) {
 function boot() {
   const { gsap, ScrollTrigger } = window;
   proLinks();
+  bar();
   setupCalculator(gsap);
   if (!gsap || !ScrollTrigger) return; // static page is complete without the libraries
   gsap.registerPlugin(ScrollTrigger);
@@ -213,6 +239,26 @@ function boot() {
       ScrollTrigger.sort();
       ScrollTrigger.refresh();
     }));
+    // Reading progress: a gold hairline under the sticky bar
+    gsap.to('.progress', { scaleX: 1, ease: 'none', scrollTrigger: { start: 0, end: 'max', scrub: 0.3 } });
+
+    // Dark sections open up from an inset, rounded panel to full bleed as they scroll in
+    $$('.edge, .share').forEach((sec) => {
+      const inset = () => (window.innerWidth < 700 ? 10 : 28);
+      gsap.fromTo(sec,
+        { clipPath: () => `inset(0px ${inset()}px 0px ${inset()}px round ${inset()}px)` },
+        { clipPath: 'inset(0px 0px 0px 0px round 0px)', ease: 'none',
+          scrollTrigger: { trigger: sec, start: 'top bottom', end: 'top 30%', scrub: true, invalidateOnRefresh: true } });
+    });
+
+    // Why ApeX: each claim lights up as it reaches the middle of the screen, its proof follows
+    $$('.edge-list li').forEach((li) => {
+      const st = { trigger: li, start: 'top 85%', end: 'top 50%', scrub: true };
+      gsap.fromTo(li.querySelector('h3'), { color: '#5F5B51' }, { color: '#F4F0E7', ease: 'none', scrollTrigger: st });
+      gsap.fromTo(li.querySelector('p'), { autoAlpha: 0.25 }, { autoAlpha: 1, ease: 'none', scrollTrigger: { ...st } });
+    });
+    rows(gsap, ScrollTrigger, '.edge-head p, .edge-cta', { y: 20 });
+
     rows(gsap, ScrollTrigger, '.steps li', { y: 24 });
     rows(gsap, ScrollTrigger, '.commands-intro p', { y: 20 });
     rows(gsap, ScrollTrigger, '.cmd-list > div', { x: -24 });

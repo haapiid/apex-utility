@@ -5,9 +5,14 @@
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>ApeX Utility</title>
 <meta name="description" content="Trade any token on Solana, Ethereum, BSC, Base, HyperEVM, MegaETH and Robinhood Chain from Telegram or the ApeX Pro web app. Paste an address, tap Buy, or snipe pump.fun launches. 0.5% per trade, 40% of fees back to $APEX holders.">
+<link rel="canonical" href="https://apexutility.fun/">
+<meta property="og:type" content="website">
+<meta property="og:site_name" content="ApeX Utility">
+<meta property="og:url" content="https://apexutility.fun/">
 <meta property="og:title" content="ApeX Utility — Trade Smart. Stay Ahead.">
 <meta property="og:description" content="A multi-chain trading bot for Telegram, and ApeX Pro in your browser. Paste, tap Buy, done.">
-<meta property="og:image" content="img/mascot-hero.png">
+<meta property="og:image" content="https://apexutility.fun/img/mascot-hero.png">
+<meta name="twitter:card" content="summary">
 <meta name="theme-color" content="#F4F0E7">
 <link rel="icon" type="image/png" sizes="32x32" href="img/favicon-32.png">
 <link rel="icon" type="image/png" sizes="192x192" href="img/favicon-192.png">
@@ -20,6 +25,7 @@
 <link rel="stylesheet" href="styles.css">
 </head>
 <body>
+<a class="skip" href="#top">Skip to content</a>
 
 <header class="bar">
   <a class="logo" href="#top" aria-label="ApeX Utility home">
@@ -27,6 +33,7 @@
     <span class="logo-word">ApeX</span>
   </a>
   <nav aria-label="Main">
+    <a href="#why">Why ApeX</a>
     <a href="#how">How it works</a>
     <a href="#features">Features</a>
     <a href="#pro">ApeX Pro</a>
@@ -35,6 +42,20 @@
     <a href="#faq">FAQ</a>
   </nav>
   <a class="btn btn-ink" href="https://t.me/apex_utility_chain_bot">Open bot</a>
+  <span class="progress" aria-hidden="true"></span>
+  <!-- Below 860px the section links move into this disclosure (works without JS) -->
+  <details class="menu">
+    <summary aria-label="Menu"><span></span></summary>
+    <nav aria-label="Sections">
+      <a href="#why">Why ApeX</a>
+      <a href="#how">How it works</a>
+      <a href="#features">Features</a>
+      <a href="#pro">ApeX Pro</a>
+      <a href="#share">Revenue share</a>
+      <a href="#fees">Fees</a>
+      <a href="#faq">FAQ</a>
+    </nav>
+  </details>
 </header>
 
 <main id="top">
@@ -42,7 +63,7 @@
   <section class="hero">
     <div class="hero-copy">
       <h1 class="lines"><span class="line"><span style="--i:0">Trade smart.</span></span> <span class="line"><span style="--i:1">Stay ahead.</span></span></h1>
-      <p class="lede">Buy and sell any token from Telegram or your browser. Paste an address, tap Buy, and you’re in, with MEV protection, a safety scan, limit orders and a pump.fun sniper built in.</p>
+      <p class="lede">Buy and sell any token from Telegram or your browser. Paste an address, tap Buy, done. MEV protection, a safety scan and automated orders are built in.</p>
       <ul class="chains" aria-label="Supported chains">
         <li>Solana</li><li>Ethereum</li><li>BSC</li><li>Base</li><li>HyperEVM</li><li>MegaETH</li><li>Robinhood</li>
       </ul>
@@ -82,6 +103,26 @@ Fee 0.5% • Slippage 5% • via Jupiter
         </div>
         <figcaption>Real bot screens, sample token BONK. <button type="button" class="replay" id="demo-replay" hidden>Replay</button></figcaption>
       </figure>
+    </div>
+  </section>
+
+  <!-- Why ApeX: each claim is paired with the mechanism behind it; claims light up as they scroll past -->
+  <section class="edge" id="why">
+    <div class="edge-head">
+      <h2 data-lines>Why traders switch to ApeX</h2>
+      <p>Everything below is live in the bot and ApeX Pro today.</p>
+    </div>
+    <ul class="edge-list">
+      <li><h3>Seven chains, one account</h3><p>Solana routes through <b>Jupiter</b>, Ethereum, BSC, Base, HyperEVM, MegaETH and Robinhood Chain through <b>KyberSwap</b>. Paste any address and ApeX finds the chain and the best route across every DEX.</p></li>
+      <li><h3>Telegram or browser, same wallets</h3><p>The bot and ApeX Pro share one account, so positions, orders, settings and rewards stay in sync. Log in with Telegram, Phantom, MetaMask or Google.</p></li>
+      <li><h3>Sandwich protection, on by default</h3><p>Swaps go through <b>Jito</b> on Solana, <b>Flashbots Protect</b> on Ethereum and <b>PancakeSwap MEV Guard</b> on BSC, to keep them out of the public mempool.</p></li>
+      <li><h3>Every token is checked before you buy</h3><p>A safety scan on every token card: honeypot, taxes, freeze and mint authority. Snipes skip red flags, and anti-rug sells your bag if its value suddenly collapses.</p></li>
+      <li><h3>Orders that work while you sleep</h3><p>Limit buys, take profit, stop loss, DCA, snipes, pump.fun rules and copy trading run on ApeX servers around the clock, checking every 2 to 30 seconds.</p></li>
+      <li><h3>Fees that come back to you</h3><p><b>25%</b> to the friend who invited you, <b>40%</b> of the rest to $APEX holders, cashback in $APEX, and claims without gas.</p></li>
+    </ul>
+    <div class="edge-cta">
+      <a class="btn btn-yellow btn-lg" href="https://t.me/apex_utility_chain_bot">Start trading in Telegram</a>
+      <a class="btn btn-line btn-lg" data-pro href="https://pro.apexutility.fun">Open ApeX Pro</a>
     </div>
   </section>
 
@@ -284,6 +325,10 @@ Fee 0.5% • Slippage 5% • via Jupiter
       <a class="btn btn-line btn-lg" data-pro href="https://pro.apexutility.fun">Open ApeX Pro</a>
     </div>
     <p class="fine">Trading crypto is risky. Nothing on this site is financial advice.</p>
+  </div>
+  <div class="foot-base">
+    <p>© 2026 ApeX Utility</p>
+    <nav aria-label="Legal"><a href="terms.html">Terms of Service</a><a href="privacy.html">Privacy Policy</a></nav>
   </div>
 </footer>
 
