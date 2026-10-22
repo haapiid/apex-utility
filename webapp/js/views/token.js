@@ -260,6 +260,7 @@ export default function token(container, [chainKey, address], query) {
     try {
       const rows = await api(`/api/token/${chain.key}/${address}/trades?pool=${data.overview.pool}`);
       if (!alive || tab !== 'trades') return;
+      if (!rows.length) return tabBody.replaceChildren(empty('No trades recently. Quiet tokens can go days without one.'));
       tabBody.replaceChildren(
         h(
           'table',

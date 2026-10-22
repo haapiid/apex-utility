@@ -182,9 +182,26 @@ function bestPair(chain, address, pairs) {
   );
 }
 
-// Token header for the token page: its most liquid pair
+// Pools of one token on GeckoTerminal, most liquid first, where the token is the pool's base token
+async function geckoTokenPools(chain, address) {
+  if (!chain.gecko) return [];
+  return cached(`gpools:${chain.key}:${address.toLowerCase()}`, 120_000, async () => {
+    const data = await geckoGet(`/networks/${chain.gecko}/tokens/${address}/pools`, { include: 'base_token' });
+    return (data.data || [])
+      .map((p) => fromGeckoPool(p, data.included, chain))
+      .filter((p) => sameAddress(chain, p.token.address, address))
+      .sort((a, b) => (b.liquidity || 0) - (a.liquidity || 0));
+  });
+}
+
+// Token header for the token page: its most liquid pair. DexScreener first; tokens it hasn't listed yet
+// (young chains like Robinhood, HyperEVM, MegaETH) fall back to GeckoTerminal so they still get a price,
+// a chart and trades.
 async function tokenOverview(chain, address) {
-  return bestPair(chain, address, await tokenPairs(chain, address));
+  const fromDex = bestPair(chain, address, await tokenPairs(chain, address).catch(() => []));
+  if (fromDex) return fromDex;
+  const [pool] = await geckoTokenPools(chain, address).catch(() => []);
+  return pool ? { ...pool, links: { websites: [], socials: [] }, source: 'GeckoTerminal' } : null;
 }
 
 // GeckoTerminal timeframes: label → [timeframe, aggregate]
