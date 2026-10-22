@@ -5,6 +5,7 @@ const { getChain } = require('../config/chains');
 // Starred tokens per user (ApeX Pro). EVM addresses are stored lowercase so a token is starred once.
 
 const MAX = 100;
+const GECKO_PER_CALL = 5;
 const norm = (chain, token) => (chain.kind === 'evm' ? token.toLowerCase() : token);
 
 function add(userId, chain, token) {
@@ -51,6 +52,14 @@ async function overview(userId) {
           if (best) found.set(`${key}:${t}`, best);
         }
       }
+    }),
+  );
+  // Tokens DexScreener hasn't listed (young chains): GeckoTerminal, a few per call since its free tier is slow
+  const missing = rows.filter((w) => !found.has(`${w.chain}:${w.token}`) && getChain(w.chain)?.tradable).slice(0, GECKO_PER_CALL);
+  await Promise.all(
+    missing.map(async (w) => {
+      const pool = await marketData.tokenOverview(getChain(w.chain), w.token).catch(() => null);
+      if (pool) found.set(`${w.chain}:${w.token}`, pool);
     }),
   );
   return rows.map((w) => ({ ...w, pair: found.get(`${w.chain}:${w.token}`) || null }));
