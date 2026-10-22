@@ -228,7 +228,9 @@ folder** so they load; approve the two project MCP servers the first time.
 - Hero must stay **compact**.
 - "ApeX Pro" section (2026-10-22, after Features): text + a dark HTML "screen" of ApeX Pro's pump.fun page
   (sample data, no images). Every ApeX Pro link has `data-pro`; on localhost/LAN `main.js` points them at
-  port 8080, elsewhere the HTML `href` is used — set it to the public ApeX Pro URL before deploying.
+  port 8080, elsewhere the HTML `href` is used: `https://pro.apexutility.fun`.
+- Domain (owner, 2026-10-22): `apexutility.fun` (landing) + `pro.apexutility.fun` (ApeX Pro), VPS at Rumahweb
+  (Bogor, Ubuntu 24.04, systemd service `apex`, Nginx + Let's Encrypt, `WEB_HOST=127.0.0.1`, `WEB_TRUST_PROXY=1`).
 - "Where your 0.5% goes" (2026-10-21): the owner **removed the split banana and the Win pose** (the
   scattered candles looked blotchy). It shows a clean, still trading chart (`website/art/chart.js` →
   paste `chart.inline.svg`), with its top-right corner kept free for **the mascot riding a rocket** —
@@ -270,5 +272,5 @@ lightly funded).
 - Revenue share counts only $APEX held in ApeX wallets. Wallets linked as logins in ApeX Pro are not
   counted yet (could be added to `snapshotHolders`).
 - ApeX Pro needs HTTPS in production (`WEB_PUBLIC_URL=https://…` makes the cookie Secure) and a domain;
-  register the Google redirect URI there. Set the landing page's `data-pro` links to that URL.
+  register the Google redirect URI there.
 - A security review/audit of the custodial wallet code before real users.
