@@ -96,7 +96,7 @@ listed as "coming soon" because no aggregator supports it yet.
     (add with `[chain] <address> [name]`, 🔔 toggle, 🗑 remove); `/settings` → 🔴 Sell settings
     ("Same as buy" copies the buy values into `sell` when turned off) and 📉 Max impact per side.
   - Multi-wallet trading (2026-10-23, owner request): the token page's Market box has a "Trade from"
-    picker (wallets of the chain's kind, remembered per kind in localStorage). The active wallet alone uses
+    picker (wallets of the chain's kind, saved in `settings.tradeWallets` via `POST /api/trade-wallets`, shared with the bot). The active wallet alone uses
     the quoted flow; any other pick confirms a plan (each wallet pays / sells, total, fee) and posts
     `walletIds` to `/api/trade`, which trades them one after another and returns a result per wallet.
     Limit and DCA still run from the active wallet.
@@ -104,6 +104,28 @@ listed as "coming soon" because no aggregator supports it yet.
     fresh-launch values fill in on the next 30 s refresh). Each column has its own filters (liquidity,
     market cap, 24h volume, age, holders, top 10, dev, bundled) in `apex.discover.filters`; a token with no
     value for a filter stays visible. Discover's route is `#/`; unknown routes redirect there.
+  - Own-wallet trading (2026-10-23): the Market box's "ApeX wallets | My Phantom/MetaMask" switch.
+    `selfTradeService.prepare` quotes + builds for an address that must be one of the user's **proven
+    identities** (wallet sign-in / link), returns the unsigned tx (Solana base64 v0 tx; EVM `{to,data,value}`,
+    plus an ERC-20 `approve` first when needed); `webapp/js/ownWallet.js` has the wallet sign and send it
+    (`@solana/web3.js` 1.98.0 IIFE lazy-loaded from jsDelivr for the Solana tx), then `/api/self/confirm`
+    verifies on-chain (sender = owner, success, token touched; Solana fee = growth of the treasury wSOL
+    account in that tx; EVM fee = treasury balance growth in that block) before recording the trade
+    (`source = 'wallet'`, no wallet_id / positions) and the fee split. Builds live 3 min in memory.
+    Solana needs the treasury fee account (in-swap fee); no Jito tip (the wallet sends via its own RPC).
+  - Workspace `#/workspace`: 1/2/4 charts, each its own token + timeframe, saved in `apex.workspace`;
+    ⊞ on a token page adds it. Uses `/api/token/:chain/:address/overview` (market data only) + candles.
+  - Fees & pools `#/transparency` (public): `transparencyService.overview()` (60 s cache) = per-chain fees
+    24h/30d/all, volume, referral earned, holder pool, distributed, claimed, cashback totals, recent epochs,
+    treasury + rewards wallet addresses with live balances. Aggregates only.
+  - Below 1500px the ApeX Pro menu gets its own row under the bar (`--top: 104px`).
+- Bot multi-wallet + /transparency (2026-10-23): `settings.tradeWallets` = `{ sol: [ids], evm: [ids] }`, the
+  wallets the bot's buy/sell buttons and ApeX Pro's Market box trade from (default / empty = active wallet;
+  "active only" is stored as []). Token card shows "👛 Wallets" when the user has more than one wallet of the kind (`mw:`
+  opens the picker, `mwt:…:<id>` toggles, `mwa:` all / active only). Picked ≠ only-active → no quote, a
+  plan confirmation (`showMultiConfirm`), then `runMulti` trades wallet by wallet and edits one message
+  with a ✅/❌ line each. `/transparency` (alias `/pools`) renders `transparencyService.overview()`; the
+  dashboard button only appears when `WEB_PUBLIC_URL` is https (Telegram rejects other button URLs).
   - Webapp: ticker, token tabs (Top traders, Holders, Bubble map, My trades, `?tab=`), Watchlist, Tracker,
     Positions → History, Settings buy/sell, Wallets import / remove / PIN. `replaceChildren()` prints a
     `null` child as text: pass `''` or filter. The header is `header.top` (`.row.top` collided with it).

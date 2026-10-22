@@ -427,8 +427,19 @@ function createEvmTrader(chain) {
     });
   }
 
+  // For swaps signed in the user's own wallet: the approval it still needs, if any (null when enough)
+  async function approvalFor(token, owner, spender, amount) {
+    const erc20 = new Contract(token.address, ERC20_ABI, provider);
+    const allowance = await read(erc20.allowance(owner, spender));
+    if (allowance >= amount) return null;
+    return { to: token.address, data: erc20.interface.encodeFunctionData('approve', [spender, amount]) };
+  }
+
   return {
     chain,
+    provider,
+    build,
+    approvalFor,
     getTokenInfo,
     previewRate,
     quoteTokensFor,

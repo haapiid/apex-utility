@@ -69,9 +69,11 @@ function confirmMenu(action, label, cancelTarget = 'menu:wallet') {
 }
 
 // Callback data: <action>:<chain key>:<token address>[:<amount>] (stays under Telegram's 64 bytes)
-function tokenMenu(chain, address, { buyPresets, sellPresets }) {
+// wallets: how many wallets the buttons trade from (0 = the user has only one, no picker)
+function tokenMenu(chain, address, { buyPresets, sellPresets, wallets = 0 }) {
   const kb = new InlineKeyboard();
   const at = `${chain.key}:${address}`;
+  if (wallets) kb.text(wallets > 1 ? `👛 Trading from ${wallets} wallets` : '👛 Wallets: active', `mw:${at}`).row();
   buyPresets.slice(0, 3).forEach((a) => kb.text(`🟢 Buy ${a} ${chain.native}`, `buy:${at}:${a}`));
   kb.row();
   buyPresets.slice(3).forEach((a) => kb.text(`🟢 Buy ${a} ${chain.native}`, `buy:${at}:${a}`));
@@ -149,6 +151,21 @@ function chainPickMenu(chains, address) {
     if (i % 2 === 1) kb.row();
   });
   return kb.row().add(backButton('menu:main', '🏠 Menu'));
+}
+
+// Tick the wallets that trade: mwt:<chain>:<address>:<walletId>, all / active only: mwa:…
+function walletPickMenu(chain, address, wallets, picked) {
+  const at = `${chain.key}:${address}`;
+  const kb = new InlineKeyboard();
+  wallets.forEach((w, i) => {
+    if (i && i % 3 === 0) kb.row();
+    kb.text(`${picked.has(w.id) ? '✅' : '⬜'} ${w.label}`, `mwt:${at}:${w.id}`);
+  });
+  return kb
+    .row()
+    .text(picked.size === wallets.length ? '☝️ Active only' : '✅ All wallets', `mwa:${at}`)
+    .row()
+    .add(backButton(`tok:${at}`, '⬅️ Back to token'));
 }
 
 function tradeConfirmMenu(id) {
@@ -264,6 +281,7 @@ function gasMenu() {
 }
 
 module.exports = {
+  walletPickMenu,
   KIND_ICON,
   mainMenu,
   walletMenu,

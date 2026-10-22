@@ -3,7 +3,7 @@ const walletService = require('../../services/walletService');
 const settingsService = require('../../services/settingsService');
 const safetyService = require('../../services/safetyService');
 const { withTimeout } = require('../../services/tradeCommon');
-const { tokenMenu, chainPickMenu, tradeConfirmMenu, afterTradeMenu, backOnly } = require('../keyboards');
+const { tokenMenu, chainPickMenu, tradeConfirmMenu, afterTradeMenu, backOnly, walletPickMenu } = require('../keyboards');
 const { respond, editProgress, setPending, createConfirmation, takeConfirmation } = require('../helpers');
 const {
   formatNumber,
@@ -46,6 +46,44 @@ function tradeHelp() {
     `Solana via Jupiter • EVM via KyberSwap • Fee: ${bpsToPercent(config.fees.manualBps)} (snipes ${bpsToPercent(config.fees.snipeBps)})`,
     'Change slippage, MEV protection and buy buttons in /settings.',
   ].join('\n');
+}
+
+// ---------- Wallets the buy/sell buttons trade from ----------
+// Stored per wallet kind in settings (tradeWallets); defaults to the active wallet. Several wallets = one
+// trade per wallet, one after another, each reported on its own.
+
+function tradeWallets(userId, kind) {
+  const all = walletService.listWallets(userId, kind);
+  const ids = settingsService.get(userId).tradeWallets?.[kind] || [];
+  const picked = all.filter((w) => ids.includes(w.id));
+  return picked.length ? picked : all.filter((w) => w.active);
+}
+
+// True when the plain single-wallet flow applies (only the active wallet is picked)
+const onlyActive = (wallets) => wallets.length === 1 && wallets[0].active;
+
+function saveTradeWallets(userId, kind, ids) {
+  settingsService.update(userId, { tradeWallets: { [kind]: ids } });
+}
+
+async function showWalletPicker(ctx, chain, address) {
+  const all = walletService.listWallets(ctx.from.id, chain.kind);
+  const picked = new Set(tradeWallets(ctx.from.id, chain.kind).map((w) => w.id));
+  const svc = markets.serviceFor(chain);
+  const balances = await Promise.all(all.map((w) => withTimeout(svc.getNativeBalance(w.address), 6_000).catch(() => null)));
+  const lines = [
+    `👛 <b>Trade from which ${walletService.KIND_LABEL[chain.kind]} wallets?</b>`,
+    '',
+    'The buy and sell buttons trade from every ticked wallet, one after another. Each wallet pays the full amount (or sells its own %).',
+    '',
+    ...all.map(
+      (w, i) =>
+        `${picked.has(w.id) ? '✅' : '⬜'} ${escapeHtml(w.label)}${w.active ? ' (active)' : ''} • <code>${shortAddress(w.address)}</code> • ${balances[i] == null ? '?' : formatNative(balances[i], chain, 4)}`,
+    ),
+    '',
+    `Applies to all ${walletService.KIND_LABEL[chain.kind]} tokens. Limit orders, DCA and snipes keep using the active wallet.`,
+  ];
+  return respond(ctx, lines.join('\n'), walletPickMenu(chain, address, all, picked));
 }
 
 // Which chain a token address belongs to. Responds and returns null when it can't decide.
@@ -116,6 +154,8 @@ async function showToken(ctx, chain, address) {
     } else {
       lines.push('', `🐒 Create a ${walletService.KIND_LABEL[chain.kind]} wallet in /wallet to trade this token.`);
     }
+    const from = wallet ? tradeWallets(ctx.from.id, chain.kind) : [];
+    if (from.length && !onlyActive(from)) lines.push(`👛 Buttons trade from: <b>${from.map((w) => escapeHtml(w.label)).join(', ')}</b>`);
     const opts = tradeOpts(ctx, chain);
     lines.push(
       '',
@@ -127,7 +167,11 @@ async function showToken(ctx, chain, address) {
     return respond(
       ctx,
       lines.join('\n'),
-      tokenMenu(chain, token.address, { buyPresets: settingsService.buyPresets(settings, chain), sellPresets: settings.sellPresets }),
+      tokenMenu(chain, token.address, {
+        buyPresets: settingsService.buyPresets(settings, chain),
+        sellPresets: settings.sellPresets,
+        wallets: walletService.listWallets(ctx.from.id, chain.kind).length > 1 ? from.length : 0,
+      }),
     );
   } catch (err) {
     logger.warn({ err: err.message, chain: chain.key, address }, 'Token lookup failed');
@@ -148,9 +192,40 @@ function noWallet(ctx, chain) {
 // With "Confirm trades" off in /settings, a buy/sell request trades right away
 const skipConfirm = (ctx) => !settingsService.get(ctx.from.id).confirmTrades;
 
+// Several wallets (or one that isn't active): no single quote fits them all, so confirm the plan instead
+async function showMultiConfirm(ctx, chain, address, side, amount, wallets) {
+  const payload = { side, chain: chain.key, address, amount, walletIds: wallets.map((w) => w.id) };
+  if (skipConfirm(ctx)) return runTrade(ctx, payload);
+  const svc = markets.serviceFor(chain);
+  let symbol;
+  try {
+    symbol = `$${escapeHtml((await svc.getTokenInfo(address)).symbol)}`;
+  } catch (err) {
+    return respond(ctx, `❌ ${escapeHtml(svc.friendlyError(err))}`, backOnly());
+  }
+  const opts = tradeOpts(ctx, chain, side);
+  const n = wallets.length;
+  const id = createConfirmation(ctx.from.id, payload);
+  const lines = [
+    `${side === 'buy' ? '🟢 <b>Confirm Buy' : '🔴 <b>Confirm Sell'} — ${symbol}</b> • ⛓ ${chain.name}`,
+    `👛 ${n} wallet${n > 1 ? 's' : ''}: ${wallets.map((w) => escapeHtml(w.label)).join(', ')}`,
+    '',
+    side === 'buy'
+      ? `💸 Each wallet pays: <b>${escapeHtml(String(amount))} ${chain.native}</b> • total <b>${formatNumber(Number(amount) * n, 6)} ${chain.native}</b>`
+      : `💸 Each wallet sells: <b>${amount}%</b> of its own ${symbol}`,
+    `🍌 Bot fee: ${feeLabel(opts)} of each trade • Slippage ${slippageLabel(opts)}`,
+    `🥷 MEV protection: ${opts.mevProtect ? markets.mevLabel(chain) : 'off'}`,
+    '',
+    '⚡ Trades go out one wallet after another. A wallet that can’t trade (e.g. not enough balance) is skipped and listed.',
+  ];
+  return respond(ctx, lines.join('\n'), tradeConfirmMenu(id));
+}
+
 async function showBuyQuote(ctx, chain, address, amount) {
   const wallet = walletService.getWallet(ctx.from.id, chain.kind);
   if (!wallet) return noWallet(ctx, chain);
+  const from = tradeWallets(ctx.from.id, chain.kind);
+  if (!onlyActive(from)) return showMultiConfirm(ctx, chain, address, 'buy', amount, from);
   if (skipConfirm(ctx)) return runTrade(ctx, { side: 'buy', chain: chain.key, address, amount });
   const svc = markets.serviceFor(chain);
   const opts = tradeOpts(ctx, chain);
@@ -183,6 +258,8 @@ async function showBuyQuote(ctx, chain, address, amount) {
 async function showSellQuote(ctx, chain, address, percent) {
   const wallet = walletService.getWallet(ctx.from.id, chain.kind);
   if (!wallet) return noWallet(ctx, chain);
+  const from = tradeWallets(ctx.from.id, chain.kind);
+  if (!onlyActive(from)) return showMultiConfirm(ctx, chain, address, 'sell', percent, from);
   if (skipConfirm(ctx)) return runTrade(ctx, { side: 'sell', chain: chain.key, address, amount: percent });
   const svc = markets.serviceFor(chain);
   const opts = tradeOpts(ctx, chain, 'sell');
@@ -231,6 +308,8 @@ async function runTrade(ctx, payload) {
   if (message) await editProgress(ctx, message, startText);
   else message = await ctx.reply(startText);
 
+  if (payload.walletIds) return runMulti(ctx, payload, chain, svc, message);
+
   const onSubmitted = (sig) =>
     editProgress(ctx, message, `🚀 <b>Submitted</b> — <a href="${txLink(chain, sig)}">${shortAddress(sig, 6)}</a>\n⏳ Confirming…`);
   const onApproving = () => editProgress(ctx, message, '🔓 Approving the token for trading (one-time)…');
@@ -264,6 +343,42 @@ async function runTrade(ctx, payload) {
     logger.error({ err: err.message, userId: ctx.from.id, payload }, 'Trade failed');
     await editProgress(ctx, message, `❌ Trade failed: ${escapeHtml(svc.friendlyError(err))}`, afterTradeMenu(chain, payload.address));
   }
+}
+
+// One trade per picked wallet, one after another; the message lists each result as it lands
+async function runMulti(ctx, payload, chain, svc, message) {
+  const isBuy = payload.side === 'buy';
+  const userId = ctx.from.id;
+  const header = `${isBuy ? '🟢 Buying' : '🔴 Selling'} from ${payload.walletIds.length} wallets • ⛓ ${chain.name}`;
+  const lines = [];
+  let ok = 0;
+  let symbol = null;
+  for (const id of payload.walletIds) {
+    const w = walletService.getWalletById(userId, id);
+    if (!w || w.kind !== chain.kind) {
+      lines.push('❌ A wallet was removed, skipped.');
+      continue;
+    }
+    const label = escapeHtml(w.label);
+    await editProgress(ctx, message, [header, '', ...lines, `⏳ ${label}: sending…`].join('\n'));
+    try {
+      const res = isBuy
+        ? await svc.executeBuy(userId, payload.address, payload.amount, { walletId: w.id })
+        : await svc.executeSell(userId, payload.address, payload.amount, { walletId: w.id });
+      symbol ||= res.quote.token.symbol;
+      ok++;
+      const what = isBuy ? `spent ${formatNative(res.quote.amountIn, chain)}` : `received ~${formatNative(res.received, chain)}`;
+      lines.push(`✅ ${label}: ${what} • <a href="${txLink(chain, res.signature)}">tx</a>`);
+    } catch (err) {
+      logger.warn({ err: err.message, userId, walletId: w.id, payload }, 'Multi-wallet trade failed for one wallet');
+      lines.push(`❌ ${label}: ${escapeHtml(svc.friendlyError(err))}`);
+    }
+  }
+  const verb = isBuy ? 'bought' : 'sold';
+  const title = ok
+    ? `✅ <b>${ok} of ${payload.walletIds.length} wallets ${verb}${symbol ? ` $${escapeHtml(symbol)}` : ''}</b> • ⛓ ${chain.name}`
+    : `❌ <b>No wallet ${verb}</b> • ⛓ ${chain.name}`;
+  await editProgress(ctx, message, [title, '', ...lines].join('\n'), afterTradeMenu(chain, payload.address));
 }
 
 // "/buy [chain] <token> <amount>"
@@ -322,6 +437,33 @@ function register(bot) {
         `🟢 How much ${chain.native} do you want to spend? Reply with a number, e.g. <code>${chain.buyPresets[1]}</code>\n\nType /cancel to abort.`,
         { parse_mode: 'HTML' },
       );
+    }),
+  );
+
+  // Wallet picker: mw:<chain>:<address> opens it, mwt:…:<walletId> toggles one, mwa:… all / active only
+  bot.callbackQuery(new RegExp(`^mw:${AT}$`), withChain((ctx, chain, address) => showWalletPicker(ctx, chain, address)));
+  bot.callbackQuery(
+    new RegExp(`^mwt:${AT}:(\\d+)$`),
+    withChain(async (ctx, chain, address, walletId) => {
+      const all = walletService.listWallets(ctx.from.id, chain.kind);
+      const ids = new Set(tradeWallets(ctx.from.id, chain.kind).map((w) => w.id));
+      const id = Number(walletId);
+      if (!all.some((w) => w.id === id)) return ctx.answerCallbackQuery('That wallet no longer exists.');
+      if (ids.has(id)) {
+        if (ids.size === 1) return ctx.answerCallbackQuery('Keep at least one wallet ticked.');
+        ids.delete(id);
+      } else ids.add(id);
+      saveTradeWallets(ctx.from.id, chain.kind, [...ids]);
+      return showWalletPicker(ctx, chain, address);
+    }),
+  );
+  bot.callbackQuery(
+    new RegExp(`^mwa:${AT}$`),
+    withChain(async (ctx, chain, address) => {
+      const all = walletService.listWallets(ctx.from.id, chain.kind);
+      const picked = tradeWallets(ctx.from.id, chain.kind);
+      saveTradeWallets(ctx.from.id, chain.kind, picked.length === all.length ? [] : all.map((w) => w.id));
+      return showWalletPicker(ctx, chain, address);
     }),
   );
 

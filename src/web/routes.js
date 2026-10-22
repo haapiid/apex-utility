@@ -16,6 +16,8 @@ const historyService = require('../services/historyService');
 const pinService = require('../services/pinService');
 const watchlistService = require('../services/watchlistService');
 const trackerService = require('../services/trackerService');
+const selfTradeService = require('../services/selfTradeService');
+const transparencyService = require('../services/transparencyService');
 const { withTimeout, UserError, friendlyError } = require('../services/tradeCommon');
 const { config, isSolanaAddress } = require('../config');
 const { allChains, getChain, isEvmAddress, txLink, addressLink } = require('../config/chains');
@@ -217,6 +219,12 @@ function buildRoutes(app) {
         6_000,
       ).catch(() => null);
       return { chain: chain.key, info: tokenView(info), overview, safety };
+    }),
+
+    // Market overview only (no RPC, no safety scan): the workspace's chart headers
+    r('GET', '/api/token/:chain/:address/overview', async ({ params }) => {
+      const chain = chainOf(params.chain);
+      return (await marketData.tokenOverview(chain, tokenAddress(chain, params.address)).catch(() => null)) || null;
     }),
 
     r('GET', '/api/token/:chain/:address/candles', async ({ params, query }) => {
@@ -522,6 +530,54 @@ function buildRoutes(app) {
       },
       true,
     ),
+
+    // Wallets the market buttons trade from, shared with the bot (settings.tradeWallets); [] = active wallet
+    r(
+      'POST',
+      '/api/trade-wallets',
+      async ({ userId, body }) => {
+        if (!['sol', 'evm'].includes(body.kind)) throw new HttpError(400, 'kind must be sol or evm');
+        if (!Array.isArray(body.ids) || body.ids.length > walletService.walletLimit(userId)) throw new HttpError(400, 'Invalid wallet list');
+        const mine = new Set(walletService.listWallets(userId, body.kind).map((w) => w.id));
+        const ids = [...new Set(body.ids.map(Number))];
+        if (ids.some((id) => !mine.has(id))) throw new HttpError(400, `Pick your own ${walletService.KIND_LABEL[body.kind]} wallets only`);
+        settingsService.update(userId, { tradeWallets: { [body.kind]: ids } });
+        return settingsView(userId);
+      },
+      true,
+    ),
+
+    // --- trading from the user's own browser wallet (it signs; ApeX only builds and verifies) ---
+    r(
+      'POST',
+      '/api/self/prepare',
+      async ({ userId, body, limited }) => {
+        if (limited('selfPrepare', 30)) throw new HttpError(429, 'Too many requests in a minute.');
+        const { chain, address, side, amount } = tradeArgs(body);
+        const built = await selfTradeService.prepare({ userId, chain, address, side, amount, owner: String(body.owner || '').trim() });
+        if (!built.id) return { approve: built.approve, token: tokenView(built.token) };
+        const { quote, ...rest } = built;
+        return { ...rest, quote: quoteView(chain, side, quote) };
+      },
+      true,
+    ),
+    r(
+      'POST',
+      '/api/self/confirm',
+      async ({ userId, body, limited }) => {
+        if (limited('trade', 20)) throw new HttpError(429, 'Too many trades in a minute.');
+        const { signature, feeCharged } = await selfTradeService.confirm({ userId, id: body.id, signature: body.signature });
+        const chain = chainOf(body.chain);
+        return { signature, txUrl: txLink(chain, signature), feeCharged };
+      },
+      true,
+    ),
+
+    // --- public fee & pool dashboard (aggregates only) ---
+    r('GET', '/api/transparency', async () => {
+      const o = await transparencyService.overview();
+      return { ...o, chains: o.chains.map((c) => ({ ...c, explorer: addressLink(getChain(c.chain), '') })) };
+    }),
 
     r(
       'GET',

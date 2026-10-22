@@ -13,6 +13,7 @@ const modules = [
   require('./settings'),
   require('./gas'),
   require('./revenue'),
+  require('./transparency'),
   require('./help'),
   require('./text'), // must stay last: catches plain text
 ];
@@ -36,6 +37,7 @@ const COMMAND_LIST = [
   { command: 'rewards', description: '💰 Claim rewards & cashback' },
   { command: 'referral', description: '🎁 Your invite link' },
   { command: 'revenue', description: '🍌 Revenue share stats' },
+  { command: 'transparency', description: '🔎 Fees & pools, open books' },
   { command: 'fees', description: '⛽ Priority fees & gas' },
   { command: 'help', description: '❓ Help' },
 ];

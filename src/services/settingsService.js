@@ -20,6 +20,7 @@ const DEFAULTS = () => ({
   antiRugDropPct: 60, // ... by at least this much between two checks (~20 s apart)
   buyPresets: {}, // { [chainKey]: ['0.1', ...] }, overrides chain defaults
   sellPresets: [25, 50, 100],
+  tradeWallets: {}, // { sol: [walletId, ...], evm: [...] }: wallets the bot's buy/sell buttons trade from (default: active)
 });
 
 // Allowed ranges, also used to validate user input

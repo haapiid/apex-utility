@@ -12,6 +12,8 @@ import rewards from './views/rewards.js';
 import wallets from './views/wallets.js';
 import settings from './views/settings.js';
 import account from './views/account.js';
+import workspace from './views/workspace.js';
+import transparency from './views/transparency.js';
 
 // ApeX Pro single-page app: hash routes, each view returns a cleanup function.
 const ROUTES = [
@@ -24,6 +26,8 @@ const ROUTES = [
   [/^\/watchlist$/, 'watchlist', watchlist],
   [/^\/tracker$/, 'tracker', tracker],
   [/^\/rewards$/, 'rewards', rewards],
+  [/^\/workspace$/, 'workspace', workspace],
+  [/^\/transparency$/, 'transparency', transparency],
   [/^\/wallets$/, null, wallets],
   [/^\/settings$/, null, settings],
   [/^\/account$/, null, account],

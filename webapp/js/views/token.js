@@ -3,6 +3,7 @@ import { bubbleMap } from '../bubbleMap.js';
 import { historyTable } from '../history.js';
 import { createPriceChart } from '../chart.js';
 import { tradePanel } from '../tradePanel.js';
+import { addToWorkspace } from './workspace.js';
 
 const CHANGE_LABELS = { m5: '5m', h1: '1h', h6: '6h', h24: '24h' };
 
@@ -63,6 +64,7 @@ export default function token(container, [chainKey, address], query) {
             h('small', {}, info.name),
             h('span', { class: 'chip' }, chain.name),
             h('button', { class: `star${watched ? ' on' : ''}`, type: 'button', title: watched ? 'Remove from watchlist' : 'Add to watchlist', 'aria-pressed': String(watched), onclick: toggleWatch }, watched ? '★' : '☆'),
+            h('button', { class: 'star', type: 'button', title: 'Add to workspace (multi chart)', 'aria-label': 'Add to workspace', onclick: () => addToWorkspace(chain.key, info.address) }, '⊞'),
           ),
           h(
             'div',

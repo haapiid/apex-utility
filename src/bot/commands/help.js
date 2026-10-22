@@ -24,6 +24,7 @@ const HELP_TEXT = [
   '/rewards — Claim referral earnings, revenue share and cashback (gas-free); burn $APEX for credits',
   '/referral — Your invite link and earnings',
   '/revenue — Live revenue share pools & calculator',
+  '/transparency — Where the fees go: totals per chain, pools, payouts, treasury wallets',
   '/fees — Live Solana priority fees & EVM gas',
   '/cancel — Cancel the current action',
   '/help — Show this help',

@@ -88,8 +88,8 @@ header.top {
 .brand { display: flex; align-items: center; gap: 8px; flex: none; font-weight: 900; font-size: 19px; letter-spacing: -0.04em; font-variation-settings: "wdth" 118; }
 .brand img { width: 36px; height: auto; }
 .brand b { color: var(--yellow); font-weight: 900; }
-.nav { display: flex; gap: 4px; }
-.nav a { padding: 8px 10px; border-radius: 8px; font-weight: 700; color: var(--muted); }
+.nav { display: flex; gap: 4px; scrollbar-width: none; }
+.nav a { padding: 8px 10px; border-radius: 8px; font-weight: 700; color: var(--muted); white-space: nowrap; }
 .nav a:hover { color: var(--text); }
 .nav a.active { color: var(--yellow); background: var(--panel); }
 .search { position: relative; flex: 1 1 260px; max-width: 420px; margin-left: auto; }
@@ -203,6 +203,8 @@ tbody tr.link:hover { background: var(--panel-2); }
 @media (max-width: 1100px) { .token-grid { grid-template-columns: minmax(0, 1fr); } .token-side { position: static; } .chart { height: 340px; } }
 
 /* trade panel */
+.source-tabs { display: grid; grid-template-columns: 1fr 1fr; }
+.source-tabs button { min-height: 30px; }
 .field-label { font-weight: 600; font-size: 12.5px; color: var(--muted); }
 .wallet-pick { display: flex; flex-wrap: wrap; gap: 6px; }
 .wpick {
@@ -270,6 +272,31 @@ tbody tr.link:hover { background: var(--panel-2); }
 .line-item.selected b { color: var(--yellow); }
 @media (max-width: 860px) { .tracker-grid { grid-template-columns: minmax(0, 1fr); } }
 
+/* ---------- workspace: several charts at once ---------- */
+.ws-grid { display: grid; gap: var(--gap); --ws-h: calc(100vh - var(--top) - 110px); }
+.ws-grid.l1 { grid-template-columns: minmax(0, 1fr); }
+.ws-grid.l2 { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+.ws-grid.l4 { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+.ws-slot { display: flex; flex-direction: column; min-width: 0; height: max(360px, var(--ws-h)); }
+.ws-grid.l4 .ws-slot { height: max(300px, calc((var(--ws-h) - var(--gap)) / 2)); }
+.ws-slot .panel-head { flex-wrap: wrap; }
+.ws-head .tok b { font-size: 14px; }
+.ws-stats { display: flex; gap: 10px; align-items: baseline; font-size: 12.5px; flex-wrap: wrap; }
+.ws-tf { min-height: 30px; padding: 0 8px; }
+.ws-chart { flex: 1 1 auto; min-height: 0; position: relative; }
+.ws-chart .empty { position: absolute; inset: 0; display: grid; place-items: center; }
+.ws-empty { margin: auto; width: min(100% - 24px, 420px); }
+.ws-empty .row .input:last-child { flex: 1; }
+@media (max-width: 860px) {
+  .ws-grid.l2, .ws-grid.l4 { grid-template-columns: minmax(0, 1fr); }
+  .ws-slot, .ws-grid.l4 .ws-slot { height: 360px; }
+}
+
+/* ---------- transparency ---------- */
+.stack-lg { display: grid; gap: var(--gap); }
+.stack-lg > * { min-width: 0; }
+.stat p { margin: 4px 0 0; }
+
 /* ---------- cards grid (rewards, orders) ---------- */
 .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 300px), 1fr)); gap: var(--gap); }
 .stat { display: grid; gap: 4px; }
@@ -305,6 +332,13 @@ tbody tr.link:hover { background: var(--panel-2); }
 .toast.ok { border-color: rgba(61, 214, 140, 0.5); }
 .toast.err { border-color: rgba(240, 97, 109, 0.6); }
 .toast a { color: var(--yellow); text-decoration: underline; }
+
+/* ---------- medium screens: the menu gets its own row under the bar ---------- */
+@media (max-width: 1500px) and (min-width: 861px) {
+  :root { --top: 104px; }
+  header.top { height: auto; flex-wrap: wrap; row-gap: 4px; padding: 8px 16px 6px; }
+  .nav { order: 5; width: 100%; overflow-x: auto; margin-left: -10px; }
+}
 
 /* ---------- small screens ---------- */
 @media (max-width: 860px) {

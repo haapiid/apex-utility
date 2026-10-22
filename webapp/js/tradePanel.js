@@ -1,4 +1,6 @@
-import { h, api, state, chainInfo, loggedIn, fromUnits, fmtNum, native, toast, errorToast } from './lib.js';
+import { h, api, state, chainInfo, loggedIn, fromUnits, fmtNum, native, toast, errorToast, short } from './lib.js';
+import { signInWithWallet } from './auth.js';
+import { ownAddresses, walletName, prepareOwn, sendOwn } from './ownWallet.js';
 
 // Buy / sell box of the token page: Market (quote → confirm), Limit (limit buy, take profit, stop loss)
 // and DCA. Uses the user's bot settings (buttons, slippage, MEV, confirm trades).
@@ -41,35 +43,50 @@ export function tradePanel({ chainKey, address, getInfo, onTraded }) {
       'div',
       { class: 'chips' },
       h('span', { class: 'chip' }, `Slippage ${fmtNum(settings.slippageBps[chain.kind] / 100, 2)}%`),
-      h('span', { class: `chip ${settings.mevProtect ? 'ok' : 'warn'}` }, settings.mevProtect ? 'MEV protection on' : 'MEV protection off'),
+      mode === 'market' && source === 'own'
+        ? h('span', { class: 'chip' }, `Sent by ${walletName(chain.kind)}`)
+        : h('span', { class: `chip ${settings.mevProtect ? 'ok' : 'warn'}` }, settings.mevProtect ? 'MEV protection on' : 'MEV protection off'),
       h('a', { class: 'chip', href: '#/settings' }, '⚙ Settings'),
     );
 
   // ---------- wallets to trade from ----------
   // Market trades can run from several of the user's wallets of this chain's kind at once. The pick is
-  // remembered per kind; the active wallet alone is the default (and the only one with a live quote).
+  // shared with the bot (settings.tradeWallets, per kind); none picked = the active wallet, which is also
+  // the only one with a live quote.
   const kindWallets = () => (state.me.wallets || []).filter((w) => w.kind === chain.kind);
-  const pickKey = `apex.wallets.${chain.kind}`;
   let picked = loadPicked();
 
   function loadPicked() {
     const ws = kindWallets();
-    let ids = [];
-    try {
-      ids = JSON.parse(localStorage.getItem(pickKey) || '[]');
-    } catch {}
-    ids = Array.isArray(ids) ? ids.filter((id) => ws.some((w) => w.id === id)) : [];
+    const saved = state.me.settings?.tradeWallets?.[chain.kind];
+    let ids = Array.isArray(saved) ? saved.filter((id) => ws.some((w) => w.id === id)) : [];
     if (!ids.length) {
       const active = ws.find((w) => w.active) || ws[0];
       if (active) ids = [active.id];
     }
     return new Set(ids);
   }
-  function savePicked() {
+  async function savePicked() {
+    const active = kindWallets().find((w) => w.active);
+    // Only the active wallet is stored as "none picked", like the bot's "Active only"
+    const ids = picked.size === 1 && active && picked.has(active.id) ? [] : [...picked];
     try {
-      localStorage.setItem(pickKey, JSON.stringify([...picked]));
-    } catch {}
+      Object.assign(state.me.settings, await api('/api/trade-wallets', { method: 'POST', body: { kind: chain.kind, ids } }));
+    } catch (err) {
+      errorToast(err);
+      picked = loadPicked();
+      render();
+    }
   }
+  // The bot may have changed the pick since this page loaded: take the latest settings once
+  api('/api/settings')
+    .then((fresh) => {
+      if (JSON.stringify(fresh.tradeWallets) === JSON.stringify(state.me.settings?.tradeWallets)) return;
+      Object.assign(state.me.settings, fresh);
+      picked = loadPicked();
+      if (mode === 'market') render();
+    })
+    .catch(() => {});
   const pickedWallets = () => kindWallets().filter((w) => picked.has(w.id));
   // Only the active wallet on its own goes through the quoted single-trade flow
   const singleActive = () => picked.size === 1 && Boolean(pickedWallets()[0]?.active);
@@ -111,6 +128,75 @@ export function tradePanel({ chainKey, address, getInfo, onTraded }) {
     return h('div', { class: 'field' }, h('span', { class: 'field-label' }, 'Trade from'), row);
   }
 
+  // ---------- source: ApeX wallets, or the user's own browser wallet (it signs, ApeX only builds) ----------
+  const store = {
+    get: (k) => {
+      try {
+        return localStorage.getItem(k);
+      } catch {
+        return null;
+      }
+    },
+    set: (k, v) => {
+      try {
+        localStorage.setItem(k, v);
+      } catch {}
+    },
+  };
+  const sourceKey = `apex.source.${chain.kind}`;
+  const ownKey = `apex.own.${chain.kind}`;
+  let source = store.get(sourceKey) === 'own' ? 'own' : 'apex';
+  let ownPick = store.get(ownKey);
+  const owned = () => ownAddresses(state.me, chain.kind);
+  const ownWallet = () => (owned().includes(ownPick) ? ownPick : owned()[0] || null);
+
+  function sourceTabs() {
+    const pick = (s) => () => {
+      source = s;
+      store.set(sourceKey, s);
+      render();
+    };
+    return h(
+      'div',
+      { class: 'tabs source-tabs', role: 'group', 'aria-label': 'Wallet type' },
+      h('button', { type: 'button', class: source === 'apex' ? 'active' : '', 'aria-pressed': String(source === 'apex'), onclick: pick('apex') }, 'ApeX wallets'),
+      h('button', { type: 'button', class: source === 'own' ? 'active' : '', 'aria-pressed': String(source === 'own'), onclick: pick('own') }, `My ${walletName(chain.kind)}`),
+    );
+  }
+
+  function ownPicker() {
+    const list = owned();
+    const current = ownWallet();
+    const link = h('button', { type: 'button', class: 'wpick all' }, list.length ? 'Link another' : `Link ${walletName(chain.kind)}`);
+    link.onclick = async () => {
+      link.disabled = true;
+      try {
+        await signInWithWallet(chain.kind);
+        Object.assign(state.me, await api('/api/me'));
+        toast(`${walletName(chain.kind)} wallet linked`);
+        render();
+      } catch (err) {
+        errorToast(err);
+        link.disabled = false;
+      }
+    };
+    const row = h(
+      'div',
+      { class: 'wallet-pick' },
+      list.map((a) =>
+        h('button', { type: 'button', class: `wpick${a === current ? ' on' : ''}`, 'aria-pressed': String(a === current), title: a, onclick: () => ((ownPick = a), store.set(ownKey, a), render()) }, short(a)),
+      ),
+      link,
+    );
+    return h(
+      'div',
+      { class: 'field' },
+      h('span', { class: 'field-label' }, 'Your wallet'),
+      row,
+      h('p', { class: 'fine' }, `${walletName(chain.kind)} signs and sends the swap, ApeX never gets its key. Same ${fmtNum(state.config.fees.manualBps / 100, 2)}% fee, rewards count as usual.`),
+    );
+  }
+
   // ---------- market ----------
   function marketView() {
     const presets = side === 'buy' ? settings.buyPresetsResolved[chain.key] : settings.sellPresets.map(String);
@@ -127,19 +213,24 @@ export function tradePanel({ chainKey, address, getInfo, onTraded }) {
     const holding = info ? `${fmtNum(fromUnits(info.balance, info.decimals), 4)} ${info.symbol}` : '–';
     const reviewBtn = h('button', { class: `btn btn-block ${side === 'buy' ? 'btn-up' : 'btn-down'}`, type: 'button', onclick: () => review() });
     const reviewLabel = () => {
+      if (source === 'own') return (reviewBtn.textContent = `Review ${side} in ${walletName(chain.kind)}`);
       const verb = side === 'buy' ? 'Buy' : 'Sell';
       const n = picked.size > 1 ? ` from ${picked.size} wallets` : '';
       reviewBtn.textContent = settings.confirmTrades ? `Review ${side}${n}` : `${verb} now${n}`;
     };
     reviewLabel();
-    const picker = walletPicker(() => {
-      quoteBox.replaceChildren();
-      reviewLabel();
-    });
+    const picker =
+      source === 'own'
+        ? ownPicker()
+        : walletPicker(() => {
+            quoteBox.replaceChildren();
+            reviewLabel();
+          });
 
     async function review() {
       const amount = input.value.trim().replace('%', '');
       if (!amount) return input.focus();
+      if (source === 'own') return reviewOwn(amount);
       if (!singleActive()) {
         if (!settings.confirmTrades) return executeMulti(amount);
         return quoteBox.replaceChildren(multiView(amount));
@@ -156,7 +247,42 @@ export function tradePanel({ chainKey, address, getInfo, onTraded }) {
       }
     }
 
-    function quoteView(q, amount) {
+    // Own wallet: ApeX quotes and builds, then the wallet shows, signs and sends it
+    async function reviewOwn(amount) {
+      const owner = ownWallet();
+      if (!owner) return toast(`Link your ${walletName(chain.kind)} wallet first.`, { kind: 'err' });
+      reviewBtn.disabled = true;
+      const status = h('p', { class: 'fine' }, 'Getting a quote…');
+      quoteBox.replaceChildren(status);
+      try {
+        const prep = await prepareOwn({ chain, address, side, amount, owner, onStatus: (t) => (status.textContent = t) });
+        const q = { ...prep.quote, mevProtect: true, mev: `sent by ${walletName(chain.kind)}`, wallet: { label: short(owner) } };
+        quoteBox.replaceChildren(quoteView(q, amount, (btn) => confirmOwn(prep, owner, btn), `Confirm in ${walletName(chain.kind)}`));
+      } catch (err) {
+        quoteBox.replaceChildren();
+        errorToast(err);
+      } finally {
+        reviewBtn.disabled = false;
+      }
+    }
+
+    async function confirmOwn(prep, owner, btn) {
+      btn.disabled = true;
+      const status = h('p', { class: 'fine' });
+      btn.after(status);
+      try {
+        const res = await sendOwn({ chain, prep, owner, onStatus: (t) => (status.textContent = t) });
+        toast(side === 'buy' ? 'Buy confirmed ✅' : 'Sell confirmed ✅', { link: res.txUrl });
+        quoteBox.replaceChildren();
+        onTraded?.();
+      } catch (err) {
+        // A prepared swap is used once: review again for a fresh one
+        quoteBox.replaceChildren();
+        errorToast(err);
+      }
+    }
+
+    function quoteView(q, amount, onConfirm = (btn) => execute(amount, btn), confirmLabel = `Confirm ${side}`) {
       const dec = q.token.decimals;
       const rows =
         side === 'buy'
@@ -173,7 +299,7 @@ export function tradePanel({ chainKey, address, getInfo, onTraded }) {
               ['Minimum before fee', native(q.minOut, chain)],
             ];
       rows.push(['Price impact', q.priceImpactPct == null ? 'n/a' : `${fmtNum(q.priceImpactPct, 2)}%`], ['MEV protection', q.mevProtect ? q.mev : 'off'], ['Wallet', q.wallet.label]);
-      const confirm = h('button', { class: `btn btn-block ${side === 'buy' ? 'btn-up' : 'btn-down'}`, type: 'button', onclick: () => execute(amount, confirm) }, `Confirm ${side}`);
+      const confirm = h('button', { class: `btn btn-block ${side === 'buy' ? 'btn-up' : 'btn-down'}`, type: 'button', onclick: () => onConfirm(confirm) }, confirmLabel);
       return h('div', { class: 'stack' }, h('div', { class: 'quote' }, rows.map(([k, v]) => h('div', {}, h('span', {}, k), h('b', {}, v)))), confirm, h('button', { class: 'btn btn-ghost btn-sm', type: 'button', onclick: () => quoteBox.replaceChildren() }, 'Cancel'));
     }
 
@@ -251,8 +377,14 @@ export function tradePanel({ chainKey, address, getInfo, onTraded }) {
     }
 
     return [
+      sourceTabs(),
       picker,
-      h('div', { class: 'row fine' }, h('span', { class: 'grow' }, side === 'buy' ? `Buy with ${chain.native}` : 'Sell a share of your bag'), h('span', { title: 'In your active wallet' }, `Holding ${holding}`)),
+      h(
+        'div',
+        { class: 'row fine' },
+        h('span', { class: 'grow' }, side === 'buy' ? `Buy with ${chain.native}` : 'Sell a share of your bag'),
+        source === 'apex' ? h('span', { title: 'In your active wallet' }, `Holding ${holding}`) : '',
+      ),
       presetRow,
       input,
       reviewBtn,
