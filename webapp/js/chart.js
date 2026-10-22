@@ -20,7 +20,8 @@ export function createPriceChart(el) {
     layout: { background: { color: COLORS.bg }, textColor: COLORS.text, fontFamily: 'JetBrains Mono, ui-monospace, monospace', fontSize: 11 },
     grid: { vertLines: { color: COLORS.grid }, horzLines: { color: COLORS.grid } },
     rightPriceScale: { borderColor: COLORS.line },
-    timeScale: { borderColor: COLORS.line, timeVisible: true, secondsVisible: false },
+    // Capped bar spacing: a new token with a dozen candles would otherwise stretch them into wide bars
+    timeScale: { borderColor: COLORS.line, timeVisible: true, secondsVisible: false, barSpacing: 8, minBarSpacing: 1, maxBarSpacing: 14, rightOffset: 4 },
     crosshair: { mode: 0 },
   });
   const candles = chart.addSeries(LWC.CandlestickSeries, {

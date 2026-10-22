@@ -96,7 +96,7 @@ header.top {
 .search input { width: 100%; min-height: 38px; padding: 0 12px; border-radius: 8px; border: 1px solid var(--line); background: var(--panel); outline: none; }
 .search input:focus { border-color: var(--yellow); }
 .search-results {
-  position: absolute; top: calc(100% + 6px); left: 0; right: 0; max-height: 60vh; overflow: auto;
+  position: absolute; top: calc(100% + 6px); right: 0; width: min(560px, calc(100vw - 24px)); max-height: 70vh; overflow: auto; z-index: 30;
   background: var(--panel); border: 1px solid var(--line); border-radius: var(--radius); box-shadow: 0 20px 40px rgba(0, 0, 0, 0.5);
 }
 .chain-select { width: auto; flex: none; background: var(--panel); font-weight: 700; }
@@ -115,6 +115,13 @@ header.top {
 .tick .mono { color: var(--muted); }
 @keyframes ticker { to { transform: translateX(-50%); } }
 @media (prefers-reduced-motion: reduce) { .ticker { overflow-x: auto; } .ticker-track { animation: none; } .ticker-group[aria-hidden] { display: none; } }
+
+/* search results: wider rows than the input, nothing overlaps */
+.search-results .card { grid-template-columns: 40px minmax(0, 1fr) auto; padding: 12px 14px; gap: 12px; }
+.search-results .avatar { width: 40px; height: 40px; }
+.search-results .name { font-size: 15px; }
+.search-results .meta { gap: 6px 12px; }
+.search-results .stats { white-space: nowrap; font-size: 12.5px; }
 
 /* ---------- layout ---------- */
 .view { padding: 14px 16px 40px; outline: none; }

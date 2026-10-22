@@ -132,8 +132,8 @@ function setupSearch() {
                 'a',
                 { class: 'card', href: `#/token/${p.chain}/${p.token.address}`, onclick: () => ((input.value = ''), close()) },
                 avatar(p.token),
-                h('div', {}, h('div', { class: 'name' }, p.token.symbol || short(p.token.address), h('small', {}, p.token.name || '')), h('div', { class: 'meta' }, chainInfo(p.chain)?.name || p.chain, p.liquidity ? `Liq ${fmtCompact(p.liquidity)}` : null)),
-                h('div', { class: 'stats' }, p.priceUsd ? h('b', {}, fmtPrice(p.priceUsd)) : null, p.mcap ? `MC ${fmtCompact(p.mcap)}` : null),
+                h('div', {}, h('div', { class: 'name' }, p.token.symbol || short(p.token.address), h('small', {}, p.token.name || '')), h('div', { class: 'meta' }, h('span', {}, chainInfo(p.chain)?.name || p.chain), p.liquidity ? h('span', {}, `Liq ${fmtCompact(p.liquidity)}`) : null)),
+                h('div', { class: 'stats' }, p.priceUsd ? h('b', {}, fmtPrice(p.priceUsd)) : null, p.mcap ? h('span', {}, `MC ${fmtCompact(p.mcap)}`) : null),
               ),
             )
           : [h('div', { class: 'empty' }, 'No tokens found on our chains.')]),
