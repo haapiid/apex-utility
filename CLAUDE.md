@@ -92,6 +92,9 @@ listed as "coming soon" because no aggregator supports it yet.
     automated sells (stop loss, `antirug` source, DCA, copy) always go through.
   - `historyService`, `watchlistService`, `trackerService` + `workers/tracker.js` (15 s, events kept 7 days),
     `pinService` (scrypt, 5 tries → 15 min lock; guards web export / import / remove, not the bot).
+  - Bot (`commands/lists.js`): `/history`, `/watchlist` (⭐ Watch on token cards toggles), `/tracker`
+    (add with `[chain] <address> [name]`, 🔔 toggle, 🗑 remove); `/settings` → 🔴 Sell settings
+    ("Same as buy" copies the buy values into `sell` when turned off) and 📉 Max impact per side.
   - Executes take `walletId` (multi-wallet backend); the trade box UI for it and Discover card metrics /
     column filters were **not built** (stopped by a safety check — don't retry them).
   - Webapp: ticker, token tabs (Top traders, Holders, Bubble map, My trades, `?tab=`), Watchlist, Tracker,

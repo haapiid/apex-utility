@@ -9,6 +9,10 @@ function mainMenu() {
     .text('🐒 Wallets', 'menu:wallet')
     .text('📊 Positions', 'menu:positions')
     .row()
+    .text('📜 History', 'menu:history')
+    .text('⭐ Watchlist', 'menu:watchlist')
+    .text('👁 Tracker', 'menu:tracker')
+    .row()
     .text('⚡ Trade', 'menu:trade')
     .text('🤖 Orders', 'menu:orders')
     .row()
@@ -73,7 +77,7 @@ function tokenMenu(chain, address, { buyPresets, sellPresets }) {
   buyPresets.slice(3).forEach((a) => kb.text(`🟢 Buy ${a} ${chain.native}`, `buy:${at}:${a}`));
   kb.text(`🟢 Buy X ${chain.native}`, `buyx:${at}`).row();
   sellPresets.forEach((p) => kb.text(`🔴 Sell ${p}%`, `sell:${at}:${p}`));
-  kb.row().text('🎯 Limit / TP / SL', `ao:menu:${at}`).text('🔁 DCA', `ao:dca:${at}`);
+  kb.row().text('🎯 Limit / TP / SL', `ao:menu:${at}`).text('🔁 DCA', `ao:dca:${at}`).text('⭐ Watch', `wl:t:${at}`);
   return kb.row().text('🔄 Refresh', `tok:${at}`).text('📊 Positions', 'menu:positions').add(backButton('menu:main', '🏠 Menu'));
 }
 
@@ -185,6 +189,9 @@ function settingsMenu(labels) {
     .text(`⚡ Priority ${labels.priority}`, 'set:prio')
     .row()
     .text(`⛽ EVM gas boost ${labels.gas}`, 'set:gas')
+    .text(`📉 Max impact ${labels.impact}`, 'set:impact')
+    .row()
+    .text('🔴 Sell settings', 'menu:sellset')
     .row()
     .text(`🛡️ Anti-rug: ${labels.rug}`, 'set:rug')
     .text(`📉 Trigger ${labels.rugPct}`, 'set:rugpct')
@@ -195,6 +202,25 @@ function settingsMenu(labels) {
     .text('♻️ Reset to defaults', 'set:reset')
     .row()
     .add(backButton());
+}
+
+// Sell side: "same as buy" toggle, then its own values when it has them
+function sellSettingsMenu(labels) {
+  const kb = new InlineKeyboard().text(`🔁 Same as buy: ${labels.own ? 'OFF' : 'ON'}`, 'ss:same').row();
+  if (labels.own) {
+    kb.text(`🛡️ MEV protection: ${labels.mev}`, 'ss:mev')
+      .row()
+      .text(`🎯 Slippage SOL ${labels.slipSol}`, 'ss:slip:sol')
+      .text(`🎯 Slippage EVM ${labels.slipEvm}`, 'ss:slip:evm')
+      .row()
+      .text(`💸 Jito tip ${labels.tip}`, 'ss:tip')
+      .text(`⚡ Priority ${labels.priority}`, 'ss:prio')
+      .row()
+      .text(`⛽ Gas boost ${labels.gas}`, 'ss:gas')
+      .text(`📉 Max impact ${labels.impact}`, 'ss:impact')
+      .row();
+  }
+  return kb.add(backButton('menu:settings'));
 }
 
 function settingsChainMenu(chains) {
@@ -256,6 +282,7 @@ module.exports = {
   copyMenu,
   copyDetailMenu,
   settingsMenu,
+  sellSettingsMenu,
   settingsChainMenu,
   rewardsMenu,
   adminMenu,

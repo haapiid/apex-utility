@@ -431,33 +431,8 @@ function buildRoutes(app) {
     // --- history, watchlist, wallet tracker ---
     r('GET', '/api/history', async ({ userId, query }) => historyService.list(userId, query), true),
     r('GET', '/api/watchlist', async ({ userId }) => watchlistService.list(userId), true),
-    // Watchlist with each token's best pair (DexScreener, 30 tokens per call per chain)
-    r(
-      'GET',
-      '/api/watchlist/overview',
-      async ({ userId }) => {
-        const list = watchlistService.list(userId);
-        const byChain = new Map();
-        for (const w of list) byChain.set(w.chain, [...(byChain.get(w.chain) || []), w.token]);
-        const found = new Map();
-        await Promise.all(
-          [...byChain].map(async ([key, tokens]) => {
-            const chain = getChain(key);
-            if (!chain?.tradable) return;
-            for (let i = 0; i < tokens.length; i += 30) {
-              const batch = tokens.slice(i, i + 30);
-              const pairs = await marketData.tokenPairs(chain, batch).catch(() => []);
-              for (const t of batch) {
-                const best = pairs.filter((p) => String(p.token.address).toLowerCase() === t.toLowerCase()).sort((a, b) => (b.liquidity || 0) - (a.liquidity || 0))[0];
-                if (best) found.set(`${key}:${t}`, best);
-              }
-            }
-          }),
-        );
-        return list.map((w) => ({ ...w, pair: found.get(`${w.chain}:${w.token}`) || null }));
-      },
-      true,
-    ),
+    // Watchlist with each token's best pair (DexScreener)
+    r('GET', '/api/watchlist/overview', async ({ userId }) => watchlistService.overview(userId), true),
     r(
       'POST',
       '/api/watchlist',

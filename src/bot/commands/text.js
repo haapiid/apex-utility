@@ -5,6 +5,7 @@ const { handleImportKey } = require('./wallet');
 const { handleSettingInput } = require('./settings');
 const { handleAutomationInput } = require('./automation');
 const { handleCopyInput } = require('./copy');
+const { handleTrackInput } = require('./lists');
 const { handleBurnInput } = require('./rewards');
 const { openToken, showBuyQuote, ADDRESS_PATTERN } = require('./trade');
 
@@ -22,6 +23,7 @@ function register(bot) {
     if (state?.action === 'setting') return handleSettingInput(ctx, state);
     if (state?.action === 'automation') return handleAutomationInput(ctx, state);
     if (state?.action === 'copy_add') return handleCopyInput(ctx, state);
+    if (state?.action === 'track_add') return handleTrackInput(ctx, state);
     if (state?.action === 'burn') return handleBurnInput(ctx);
     if (state?.action === 'buy_amount') {
       if (!(Number(text) > 0)) {
