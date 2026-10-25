@@ -21,7 +21,18 @@ listed as "coming soon" because no aggregator supports it yet.
   bot has connected to Telegram. **Without `BOT_TOKEN`** it runs ApeX Pro alone (workers on, wallet /
   Google login, Telegram login hidden) — ApeX is not only a Telegram bot.
 - `npm run site` — serve `website/` on port 3000 (prints LAN IPs). `PORT=8080 npm run site` to change.
-- No test suite yet.
+- No test suite yet for the bot. `contracts/launchpad/`: `npm test` (Hardhat, 17 tests).
+
+## Robinhood launchpad (`contracts/launchpad/`, owner decision 2026-10-25)
+
+$APEX launches on **Solana**; a pump.fun-style **launchpad runs on Robinhood Chain** as a second product.
+Separate Hardhat project (own `package.json`, not loaded by the bot): `LaunchToken` (fixed 1B supply, no
+owner/tax, transfers to its V2 pair blocked until graduation) + `ApeLaunchpad` (virtual-reserve bonding
+curve 1.5 ETH / 1.073B, 793.1M sold → ~4.25 ETH raised, then ETH + tokens minted straight into Robinhood's
+Uniswap V2 pair, LP to 0x…dEaD, unneeded reserve burned). Fees 1% trade / 0% creator / 2% graduation,
+pulled with `claimFees()`, capped in code; pause never blocks sells. Hardhat pinned to 2.19.5 (newer EDR
+binary is blocked by Windows Smart App Control), EVM target Shanghai. Not deployed and not audited yet;
+never deploy it yourself. ApeX bot / Pro integration is the next phase (see its README).
 
 `.env` is not in git. Copy `.env.example` and fill `BOT_TOKEN`, `WALLET_SECRET`, `TREASURY_ADDRESS`,
 `EVM_TREASURY_ADDRESS` (and private `*_RPC_URL`s for launch).

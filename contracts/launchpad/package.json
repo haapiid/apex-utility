@@ -1,0 +1,25 @@
+{
+  "name": "apex-launchpad",
+  "version": "0.1.0",
+  "private": true,
+  "description": "ApeX Launchpad: bonding-curve token launches on Robinhood Chain that graduate to Uniswap V2",
+  "license": "UNLICENSED",
+  "scripts": {
+    "build": "hardhat compile",
+    "test": "hardhat test",
+    "deploy:testnet": "hardhat run scripts/deploy.js --network hoodTestnet",
+    "deploy:mainnet": "hardhat run scripts/deploy.js --network hood"
+  },
+  "devDependencies": {
+    "@nomicfoundation/hardhat-chai-matchers": "2.0.6",
+    "@nomicfoundation/hardhat-ethers": "3.0.5",
+    "@nomicfoundation/hardhat-network-helpers": "1.0.10",
+    "@nomicfoundation/hardhat-verify": "2.0.4",
+    "@openzeppelin/contracts": "5.6.1",
+    "@uniswap/v2-core": "1.0.1",
+    "chai": "4.3.10",
+    "dotenv": "16.6.1",
+    "ethers": "6.11.1",
+    "hardhat": "2.19.5"
+  }
+}
