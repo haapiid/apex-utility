@@ -8,7 +8,8 @@
 
 // Same model as the bot's /revenue calculator (.env): FEE_MANUAL_BPS=50, REVENUE_SHARE_BPS=4000,
 // holders split by holdings, assuming no referred volume
-const MODEL = { fee: 0.005, share: 0.4, totalSupply: 1_000_000 };
+// $APEX total supply: 1,000,000,000 (read on-chain at launch, 2026-11-11)
+const MODEL = { fee: 0.005, share: 0.4, totalSupply: 1_000_000_000 };
 const REDUCED = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
 
 const fmt = (n, max = 4) => new Intl.NumberFormat('en-US', { maximumFractionDigits: max }).format(n);

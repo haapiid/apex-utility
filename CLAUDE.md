@@ -292,8 +292,10 @@ Built in phases, each tested before the next:
    with standalone accounts: login with Phantom / MetaMask, Google, or the Telegram code; accounts link.
 
 Decisions: revenue share = **40% of fees to $APEX holders only** (pro-rata by holdings, like Banana Gun;
-traders are rewarded through cashback instead of the 70/30 split). **$APEX is not launched**: build
-everything with the token address configurable in `.env`, never deploy a token. Claims are paid
+traders are rewarded through cashback instead of the 70/30 split). **$APEX launched 2026-11-11** on Robinhood
+Chain via Pons by the owner: `0xB17cbB73d76B676450098B089B27a8Bf4F38e0fd` ("APEX UTILITY", 18 decimals, 1,000,000,000
+supply, deployer = the admin wallet). It stays configured in `.env` (`APEX_TOKEN_CHAIN=hood`, `APEX_TOKEN_ADDRESS`);
+never deploy a token. The CA shown on the site is set separately in ApeX Pro → Account (admin, `officialTokenService`, display only). Claims are paid
 **automatically from a dedicated rewards wallet** (separate from the treasury, key on the server, keep it
 lightly funded).
 
@@ -307,7 +309,6 @@ lightly funded).
 - Jupiter `/swap/v1` (Metis) is deprecated in favour of Swap V2; migrate before it is switched off.
 - Revenue distribution to holders/traders is tracked but **not paid out** yet.
 - Run on a VPS 24/7; back up `WALLET_SECRET` and `data/`.
-- $APEX supply 1,000,000 (site calculator + `.env`) is a placeholder until the token launches.
 - Revenue share counts only $APEX held in ApeX wallets. Wallets linked as logins in ApeX Pro are not
   counted yet (could be added to `snapshotHolders`).
 - ApeX Pro needs HTTPS in production (`WEB_PUBLIC_URL=https://…` makes the cookie Secure) and a domain;
