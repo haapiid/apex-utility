@@ -61,6 +61,36 @@ function proLinks() {
   $$('[data-pro]').forEach((a) => { a.href = `http://${host}:8080/`; });
 }
 
+// ---------------------------------------------------------------- official $APEX
+// Read from ApeX Pro (public, CORS-allowed for this site). Nothing is shown until an admin sets it there.
+async function officialToken() {
+  const base = ($('[data-pro]')?.href || 'https://pro.apexutility.fun/').replace(/\/$/, '');
+  let t = null;
+  try {
+    const res = await fetch(`${base}/api/official-token`, { credentials: 'omit' });
+    t = res.ok ? (await res.json()).token : null;
+  } catch {
+    return;
+  }
+  if (!t?.address) return;
+  const name = `$${t.symbol || 'APEX'}`;
+  $('#apex-ca-label').textContent = `Official ${name} · ${t.chainName}`;
+  const addr = $('#apex-ca-addr');
+  addr.textContent = t.address;
+  addr.addEventListener('click', async () => {
+    try {
+      await navigator.clipboard.writeText(t.address);
+      addr.dataset.copied = '1';
+      setTimeout(() => delete addr.dataset.copied, 1400);
+    } catch {}
+  });
+  if (/^https:\/\//.test(t.explorer || '')) $('#apex-ca-link').href = t.explorer;
+  else $('#apex-ca-link').remove();
+  $('#apex-ca').hidden = false;
+  const faq = $('#apex-faq');
+  if (faq) faq.textContent = `${name} is live on ${t.chainName}: ${t.address}. Holder rewards start once the first distribution runs; /revenue shows the live pool.`;
+}
+
 // ---------------------------------------------------------------- sticky bar
 // Hairline once the page scrolls, the menu closes after a pick, and the section in view is marked
 function bar() {
@@ -213,6 +243,7 @@ function rows(gsap, ScrollTrigger, selector, from) {
 function boot() {
   const { gsap, ScrollTrigger } = window;
   proLinks();
+  officialToken();
   bar();
   setupCalculator(gsap);
   if (!gsap || !ScrollTrigger) return; // static page is complete without the libraries

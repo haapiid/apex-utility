@@ -18,6 +18,7 @@ const watchlistService = require('../services/watchlistService');
 const trackerService = require('../services/trackerService');
 const selfTradeService = require('../services/selfTradeService');
 const transparencyService = require('../services/transparencyService');
+const officialToken = require('../services/officialTokenService');
 const { withTimeout, UserError, friendlyError } = require('../services/tradeCommon');
 const { config, isSolanaAddress } = require('../config');
 const { allChains, getChain, isEvmAddress, txLink, addressLink } = require('../config/chains');
@@ -332,8 +333,23 @@ function buildRoutes(app) {
         hasPin: pinService.hasPin(userId),
         credits,
         extraWalletSlots: slots,
+        admin: officialToken.isAdmin(userId),
       };
     }),
+
+    // --- official $APEX address (landing page + ApeX Pro); display only, see officialTokenService ---
+    r('GET', '/api/official-token', ({ allowSiteOrigin }) => (allowSiteOrigin(), { token: officialToken.get() })),
+    r(
+      'POST',
+      '/api/admin/official-token',
+      async ({ userId, body }) => {
+        if (!officialToken.isAdmin(userId)) throw new HttpError(403, 'Only an ApeX admin can change the official token.');
+        if (body.address === null) return (officialToken.clear(), { token: null });
+        const chain = chainOf(body.chain);
+        return { token: await officialToken.set(chain, tokenAddress(chain, String(body.address || '').trim())) };
+      },
+      true,
+    ),
 
     // --- account & notifications ---
     r(

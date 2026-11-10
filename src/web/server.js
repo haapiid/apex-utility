@@ -200,6 +200,10 @@ function createWebServer(routes) {
         body,
         sessionToken: cookies[COOKIE],
         setCookie: (value) => (headers['Set-Cookie'] = value),
+        // Public data the landing page reads cross-origin (GET only, no cookies)
+        allowSiteOrigin: () => {
+          if (config.web.siteOrigins.includes(req.headers.origin)) Object.assign(headers, { 'Access-Control-Allow-Origin': req.headers.origin, Vary: 'Origin' });
+        },
         limited: (bucket, max, windowMs) => limited(ip, bucket, max, windowMs),
       });
       // OAuth hops answer with a redirect instead of JSON

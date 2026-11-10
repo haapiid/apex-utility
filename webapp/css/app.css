@@ -350,3 +350,7 @@ tbody tr.link:hover { background: var(--panel-2); }
   .kpis { margin-left: 0; gap: 12px; }
   .token-side { order: -1; }
 }
+
+/* Official $APEX address (Fees & pools) */
+.official-ca { margin-bottom: 16px; }
+.official-ca code { overflow-wrap: anywhere; }

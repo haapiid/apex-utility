@@ -16,6 +16,7 @@ function until(ms) {
 }
 
 export default function transparency(container) {
+  const ca = h('div');
   const body = h('div', { class: 'stack-lg' }, h('div', { class: 'skeleton spaced' }), h('div', { class: 'skeleton spaced' }));
   container.append(
     h(
@@ -24,8 +25,10 @@ export default function transparency(container) {
       h('h1', {}, 'Fees & pools'),
       h('p', { class: 'fine' }, 'Live from ApeX’s own books, updated every minute. Totals only, nothing about any single user.'),
     ),
+    ca,
     body,
   );
+  api('/api/official-token').then((r) => r.token && ca.replaceChildren(officialPanel(r.token)), () => {});
 
   let alive = true;
   async function load() {
@@ -42,6 +45,21 @@ export default function transparency(container) {
     alive = false;
     clearInterval(timer);
   };
+}
+
+// The official $APEX contract address, set by an admin after the launch
+function officialPanel(t) {
+  return h(
+    'section',
+    { class: 'panel official-ca' },
+    h('div', { class: 'panel-head' }, h('h2', {}, `Official $${t.symbol || 'APEX'} · ${t.chainName}`)),
+    h(
+      'div',
+      { class: 'panel-body stack' },
+      h('div', { class: 'row' }, h('code', { class: 'mono grow' }, t.address), copyButton(t.address, 'Copy contract address')),
+      h('p', { class: 'fine' }, h('a', { href: t.explorer, target: '_blank', rel: 'noopener noreferrer' }, 'View on explorer ↗'), ' · This is the only official contract address. Any other token with the same name is not ours.'),
+    ),
+  );
 }
 
 function render(d) {

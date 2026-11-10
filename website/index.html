@@ -71,6 +71,12 @@
         <a class="btn btn-ink btn-lg" href="https://t.me/apex_utility_chain_bot">Open in Telegram</a>
         <p class="fine">Free to start. 0.5% per trade, nothing else. Or use <a data-pro href="https://pro.apexutility.fun">ApeX Pro</a> in your browser.</p>
       </div>
+      <!-- Official $APEX address: filled by main.js from ApeX Pro once an admin sets it; hidden until then -->
+      <div class="ca" id="apex-ca" hidden>
+        <p class="ca-label" id="apex-ca-label">Official $APEX</p>
+        <button class="ca-addr" type="button" id="apex-ca-addr" aria-label="Copy the official contract address"></button>
+        <p class="fine"><a id="apex-ca-link" target="_blank" rel="noopener noreferrer">View on explorer</a> · The only official contract address. Anything else is not ours.</p>
+      </div>
     </div>
 
     <div class="phone-wrap">
@@ -303,7 +309,7 @@ Fee 0.5% • Slippage 5% • via Jupiter
       </details>
       <details>
         <summary>When does $APEX launch?</summary>
-        <p>Not yet. Until then the holder pool, referral earnings and your cashback keep adding up, so nothing from the first trades is lost.</p>
+        <p id="apex-faq">Not yet. Until then the holder pool, referral earnings and your cashback keep adding up, so nothing from the first trades is lost.</p>
       </details>
       <details>
         <summary>What happens if a trade fails?</summary>

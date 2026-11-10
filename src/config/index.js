@@ -86,6 +86,12 @@ const config = {
     cashbackMultiplier: Number(process.env.CASHBACK_MULTIPLIER ?? 0.1), // cashback $ = fees paid $ × this
     creditsPerToken: Number(process.env.BURN_CREDITS_PER_TOKEN ?? 1),
     walletSlotCredits: int('EXTRA_WALLET_SLOT_CREDITS', 100),
+    // Web logins (EVM lowercased, Solana as is) allowed to set the official $APEX address shown on the site
+    adminWallets: (process.env.APEX_ADMIN_WALLETS || '')
+      .split(',')
+      .map((s) => s.trim())
+      .filter(Boolean)
+      .map((s) => (s.startsWith('0x') ? s.toLowerCase() : s)),
   },
   referral: {
     shareBps: int('REFERRAL_SHARE_BPS', 2500), // of the fees paid by referred users
@@ -103,6 +109,11 @@ const config = {
     // Behind a reverse proxy (Nginx): listen on 127.0.0.1 only, and take the visitor's IP from X-Real-IP
     host: process.env.WEB_HOST || undefined,
     trustProxy: process.env.WEB_TRUST_PROXY === '1',
+    // The landing page may read public ApeX Pro data (the official $APEX address) cross-origin
+    siteOrigins: (process.env.WEBSITE_ORIGINS || 'https://apexutility.fun,https://www.apexutility.fun,http://localhost:3000')
+      .split(',')
+      .map((s) => s.trim().replace(/\/$/, ''))
+      .filter(Boolean),
   },
   // Optional "Log in with Google" on ApeX Pro (OAuth client from Google Cloud; redirect URI =
   // WEB_PUBLIC_URL + /api/auth/google/callback). Hidden when unset.
@@ -147,6 +158,9 @@ function validateConfig() {
   }
   if (config.apex.address && !(isSolanaAddress(config.apex.address) || isAddress(config.apex.address))) {
     errors.push('APEX_TOKEN_ADDRESS is not a valid token address');
+  }
+  if (config.apex.adminWallets.some((a) => !(isSolanaAddress(a) || isAddress(a)))) {
+    errors.push('APEX_ADMIN_WALLETS must be comma-separated wallet addresses');
   }
   const { solKey, evmKey } = config.rewardsWallet;
   if (solKey) {
