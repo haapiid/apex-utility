@@ -87,6 +87,9 @@ code { font: 500 0.92em var(--mono); }
 .btn-yellow:hover { background: var(--yellow-2); }
 .btn-line { box-shadow: inset 0 0 0 2px var(--yellow); color: var(--yellow); }
 .btn-line:hover { background: var(--ink-2); }
+/* Icon-only round button (X link in the header, left of Open bot) */
+.btn-icon { flex: none; width: 44px; padding: 0; box-shadow: inset 0 0 0 2px var(--ink); color: var(--ink); }
+.btn-icon:hover { background: var(--ink); color: var(--yellow); }
 .btn-lg { min-height: 56px; padding: 0 30px; font-size: 1.125rem; }
 .fine { font-size: 0.9375rem; color: var(--muted); }
 
@@ -152,7 +155,13 @@ code { font: 500 0.92em var(--mono); }
   .bar { gap: 12px; }
   .bar > nav { display: none; }
   .bar .btn { margin-left: auto; }
+  .bar .x-link + .btn { margin-left: 0; }
   .menu { display: block; }
+}
+/* Phones: logo, X, Open bot and the menu button share one row */
+@media (max-width: 420px) {
+  .bar { gap: 8px; }
+  .bar .btn:not(.btn-icon) { padding: 0 16px; }
 }
 
 /* ---------- Sections share the gutter ---------- */
